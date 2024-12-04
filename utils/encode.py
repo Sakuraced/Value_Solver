@@ -14,6 +14,7 @@ def mask_generation(node_features, edge_index):
 
 
 
+
 def param_to_adj(graph, param_mask, param):
     n = graph.x.size()[0]
     center_node = graph.center_node
