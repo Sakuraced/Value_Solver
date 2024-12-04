@@ -6,7 +6,6 @@ import networkx as nx
 import torch
 import pandas as pd
 import pickle
-
 class Graph:
     def __init__(self, edge_index, x, center_node=None, adj=None, weight_adj=None, edge_attr=None,g=None,device='cpu'):
         self.device=device
