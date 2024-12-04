@@ -17,6 +17,7 @@ def param_to_adj(graph, param_mask, param):
     n = graph.x.size()[0]
     center_node = graph.center_node
 
+
     edge_index = graph.edge_index
     device = graph.device
     mask = torch.zeros((n, n)).to(device)
