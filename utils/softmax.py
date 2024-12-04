@@ -19,6 +19,7 @@ def diag_softmax(A):
     B[upper_triangle_indices[1], upper_triangle_indices[0]] = softmax_result[1]
     return B
 
+
 def gumbel_softmax(logits, tau=1, Normalize=False,hard=False):
     """
     实现批量的 Gumbel-Softmax，支持多个向量同时进行操作。
