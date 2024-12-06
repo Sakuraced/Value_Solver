@@ -11,7 +11,7 @@ def mask_generation(node_features, edge_index):
 
     return mask_1
 
-def param_to_adj(graph, param_mask, param):
+def param_to_adj(graph, param_mask, param, lora=None):
     n = graph.x.size()[0]
     center_node = graph.center_node
 
@@ -22,24 +22,24 @@ def param_to_adj(graph, param_mask, param):
     mask[center_node, center_node] = 1
     mask[edge_index[0, param_mask], edge_index[1, param_mask]] = 1
     mask[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = 1
+    
     # for i in range(n):
     #     print(f'{mask[i,0].item():.1f}')
     pred_adj = torch.zeros((n, n)).to(device)
     pred_adj[center_node, center_node] = param[0][0]
     pred_adj[edge_index[0, param_mask], edge_index[1, param_mask]] = param[1][param_mask]
     pred_adj[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = param[1][~param_mask]
+    if lora!=None:
+        lora=torch.mul(lora, mask)
+        pred_adj+=lora
 
-
-    mat_mask = pred_adj
-    mat_mask[center_node, center_node]=1
     pred_adj = masked_softmax(pred_adj, mask)
     return pred_adj
 
 
-def param_to_adj_work(graph, param_mask, param):
+def param_to_adj_work(graph, param_mask, param,lora=None):
     n = graph.x.size()[0]
     center_node = graph.center_node
-    mat_mask = graph.adj
     edge_index = graph.edge_index
     device = graph.device
     mask = torch.zeros((n, n)).to(device)
@@ -52,9 +52,11 @@ def param_to_adj_work(graph, param_mask, param):
     pred_adj[edge_index[0, param_mask], edge_index[1, param_mask]] = param[1][param_mask]
     pred_adj[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = param[1][~param_mask]
 
-
+    if lora!=None:
+        lora=torch.mul(lora, mask)
+        pred_adj+=lora
     pred_adj = masked_softmax(pred_adj, mask)
-    pred_adj[center_node,center_node]=1
+    
 
     pred_adj = pred_adj.T
     _, max_indices = pred_adj.max(dim=-1, keepdim=True)

@@ -14,12 +14,14 @@ def main():
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 3   #5,7,9,10
+    subgraph_node = 4   #5,7,9,10
     seed = 44
-    train_iterations_1 = 300
-    train_iterations_2 = 300
+    train_iterations_1 = 150
+    train_iterations_2 = 150
+    train_iterations_3 = 150
     lr = 0.1
     random_graph = False
+    lor=True
     loss_args={'loss_iterations': 20, 'lamda': 0.5, 'not_reached_weight': 10}
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -63,18 +65,17 @@ def main():
     #初始化待优化参数
     cen_attr = torch.zeros(1).to(device).requires_grad_()
     edge_attr=Graph.edge_attr.to(device).requires_grad_()
+    lora_Q=torch.randn(len(Graph.g.nodes()), 2).to(device).requires_grad_()
+    lora_K=torch.zeros(2, len(Graph.g.nodes())).to(device).requires_grad_()
     # 定义优化器Adam
-    optimizer = optim.Adam([edge_attr, cen_attr], lr=lr)
+    optimizer = optim.Adam([edge_attr, cen_attr,lora_Q,lora_K], lr=lr)
     # 掩码，去除一些边，使得边仅会由距中心节点较远的点指向较近的点
     mask = mask_generation(node_features=Graph.x, edge_index=Graph.edge_index).to(device)
 
     def dynamic_pruning_and_rewiring(param, pruning_ratio=0.5):
         with torch.no_grad():
-            # 计算权重的绝对值
             grad_norm = param.grad.abs()
-            # 确定剪枝阈值
             threshold = torch.quantile(grad_norm, pruning_ratio)
-            # 创建剪枝掩码
             mask = grad_norm > threshold
             param.grad *= mask.float()
 
@@ -144,9 +145,53 @@ def main():
                 "not_reached":f"{not_reached:.4f}",
                 "loss": f"{loss:.4f}"
             })
+    
+    '''
+    第三阶段优化，
+    先将待优化参数解码为对应矩阵，
+    再使用custom_loss_2损失函数
+    '''
+    csv_file = os.path.join(output_dir, "training_log_2.csv")
+    with open(csv_file, mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=["epoch", "SPTC", "MSTC", "not_reached","loss"])
+        writer.writeheader()
 
+    progress_bar = tqdm(range(train_iterations_3), desc=f"Second Optimization", dynamic_ncols=True)
+    for epoch in progress_bar:
+        optimizer.zero_grad()
+        lora_P=torch.mm(lora_Q,lora_K)
+        if not lor:
+            lora_P=None
+        pred_adj = param_to_adj(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr],lora=lora_P)
+        SPT, MST, not_reached = custom_loss_2(P=pred_adj, g=Graph,loss_args=loss_args)
+        loss = MST + SPT + not_reached
+        progress_bar.set_postfix(SPTC=f"{SPT:.4f}",
+                                 MSTC=f"{MST:.4f}",
+                                 Not_Reached=f"{not_reached:.4f}",
+                                 loss=f"{loss:.4f}",
+                                 refresh=True)
+        loss.backward()
+        dynamic_pruning_and_rewiring(edge_attr)
+        optimizer.step()
+        with open(csv_file, mode='a', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=["epoch", "SPTC", "MSTC", "not_reached", "loss"])
+            writer.writerow({
+                "epoch": epoch,
+                "SPTC": f"{SPT:.4f}",
+                "MSTC": f"{MST:.4f}",
+                "not_reached":f"{not_reached:.4f}",
+                "loss": f"{loss:.4f}"
+            })
 
-    pred_adj = param_to_adj_work(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr])
+    lora_P=torch.mm(lora_Q,lora_K)
+    if not lor:
+        lora_P=None
+    
+    # for i in range(len(pred_adj)):
+    #     for j in range(len(pred_adj)):
+    #         print(f'{pred_adj[i,j]:.1f}',end=' ')
+    #     print()
+    pred_adj = param_to_adj_work(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr],lora=lora_P)
 
     col_sums = torch.count_nonzero(pred_adj, dim=0)
     print(col_sums.sum())
@@ -200,6 +245,8 @@ def main():
     print('_________________________________________________________________________________')
     print('SPT loss:', SPT.item(), ' MST loss:', MST.item(), ' not reached', not_reached.item(),
           ' total loss:', loss.item())
+    
+
 
     # plot_graph(pred_adj)
 
