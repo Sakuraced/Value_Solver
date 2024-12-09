@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 import random
+import pickle
 
 def generate_random_graph(n, p, seed=None):
     np_random_state = np.random.get_state()
@@ -34,9 +35,10 @@ def shortest_path_sum(G, center_node):
 n = 200  # 节点数
 p = 0.1  # 边的生成概率
 seed = 44  # 随机数种子
-subgraph_node=10
+subgraph_node=9
 center_node=0
-G= nx.read_gpickle(f'data/subgraph_{subgraph_node}.gpickle')
+with open(f'data/subgraph_{subgraph_node}.gpickle', 'rb') as file:
+        G = pickle.load(file)
 # G = generate_random_graph(n, p, seed)
 print(len(G.nodes))
 num_edges_center=0
@@ -50,7 +52,7 @@ MST_weight_sum=0
 print("Minimum Spanning Tree edges with weights:")
 for u, v, weight in MST.edges(data='weight'):
     MST_weight_sum+=weight
-    print(f"({u}, {v}) with weight {weight:.2f}")
+    # print(f"({u}, {v}) with weight {weight:.2f}")
 print("MST weight:",MST_weight_sum)
 shortest_path_mean=shortest_path_sum(MST, center_node)
 print(f"SUM of shortest paths from node {center_node} to all other nodes in MST: {shortest_path_mean:.2f}")

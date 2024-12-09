@@ -14,14 +14,14 @@ def main():
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 4   #5,7,9,10
+    subgraph_node = 8   #5,7,9,10
     seed = 44
     train_iterations_1 = 150
     train_iterations_2 = 150
     train_iterations_3 = 150
     lr = 0.1
     random_graph = False
-    lor=True
+    lor=False
     loss_args={'loss_iterations': 20, 'lamda': 0.5, 'not_reached_weight': 10}
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -156,7 +156,7 @@ def main():
         writer = csv.DictWriter(file, fieldnames=["epoch", "SPTC", "MSTC", "not_reached","loss"])
         writer.writeheader()
 
-    progress_bar = tqdm(range(train_iterations_3), desc=f"Second Optimization", dynamic_ncols=True)
+    progress_bar = tqdm(range(train_iterations_3), desc=f"Third Optimization", dynamic_ncols=True)
     for epoch in progress_bar:
         optimizer.zero_grad()
         lora_P=torch.mm(lora_Q,lora_K)
