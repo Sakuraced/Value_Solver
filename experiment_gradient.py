@@ -14,14 +14,19 @@ def main():
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 8   #5,7,9,10
+    subgraph_node = 1   
     seed = 44
     train_iterations_1 = 150
     train_iterations_2 = 150
     train_iterations_3 = 150
     lr = 0.1
     random_graph = False
-    lor=False
+    lor = True
+    lora_rank = 2
+    not_reached_penalty = False #in first optimization
+    if not_reached_penalty:
+        train_iterations_2 += train_iterations_1
+        train_iterations_1 = 0
     loss_args={'loss_iterations': 20, 'lamda': 0.5, 'not_reached_weight': 10}
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -42,31 +47,13 @@ def main():
 
     output_dir = os.path.join("output", folder_name)
     os.makedirs(output_dir, exist_ok=True)
-    params = {
-        "n": n,
-        "p": p,
-        "center_node": center_node,
-        "subgraph_node": subgraph_node,
-        "seed": seed,
-        "train_iterations_1": train_iterations_1,
-        "train_iterations_2": train_iterations_2,
-        "lr": lr,
-        "random_graph": random_graph,
-        'loss_iterations': loss_args['loss_iterations'],
-        'lamda': loss_args['lamda'],
-        'not_reached_weight': loss_args['not_reached_weight'],
-        'number of nodes':len(Graph.g.nodes()),
-        'number of edges,':len(Graph.g.edges())
-    }
-    params_file = os.path.join(output_dir, "parameters.json")
-    with open(params_file, "w") as f:
-        json.dump(params, f, indent=4)
+    
 
     #初始化待优化参数
     cen_attr = torch.zeros(1).to(device).requires_grad_()
     edge_attr=Graph.edge_attr.to(device).requires_grad_()
-    lora_Q=torch.randn(len(Graph.g.nodes()), 2).to(device).requires_grad_()
-    lora_K=torch.zeros(2, len(Graph.g.nodes())).to(device).requires_grad_()
+    lora_Q=torch.randn(len(Graph.g.nodes()), lora_rank).to(device).requires_grad_()
+    lora_K=torch.zeros(lora_rank, len(Graph.g.nodes())).to(device).requires_grad_()
     # 定义优化器Adam
     optimizer = optim.Adam([edge_attr, cen_attr,lora_Q,lora_K], lr=lr)
     # 掩码，去除一些边，使得边仅会由距中心节点较远的点指向较近的点
@@ -148,10 +135,10 @@ def main():
     
     '''
     第三阶段优化，
-    先将待优化参数解码为对应矩阵，
+    先将待优化参数解码为对应矩阵+lora矩阵，
     再使用custom_loss_2损失函数
     '''
-    csv_file = os.path.join(output_dir, "training_log_2.csv")
+    csv_file = os.path.join(output_dir, "training_log_3.csv")
     with open(csv_file, mode='w', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=["epoch", "SPTC", "MSTC", "not_reached","loss"])
         writer.writeheader()
@@ -191,55 +178,40 @@ def main():
     #     for j in range(len(pred_adj)):
     #         print(f'{pred_adj[i,j]:.1f}',end=' ')
     #     print()
-    pred_adj = param_to_adj_work(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr],lora=lora_P)
+    pred_adj = param_to_adj_work(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr], lora=lora_P)
 
     col_sums = torch.count_nonzero(pred_adj, dim=0)
     print(col_sums.sum())
     SPT, MST, not_reached = test_loss(P=pred_adj, g=Graph)
 
+    # num_nodes = pred_adj.size()[0]
 
-    # 获取邻接矩阵的大小
-    num_nodes = pred_adj.size()[0]
+    # def build_graph_optimized(adj_matrix):
+    #     num_nodes = adj_matrix.size(0)
 
-    def build_graph_optimized(adj_matrix):
-        num_nodes = adj_matrix.size(0)
+    #     edges = adj_matrix.nonzero()
+    #     edges = edges[edges[:, 0] != edges[:, 1]] 
+    #     graph = {i: [] for i in range(num_nodes)}
+    #     for edge in edges:
+    #         graph[edge[0].item()].append(edge[1].item())
 
-        # 使用非零元素获取所有边的起点和终点索引
-        edges = adj_matrix.nonzero()
+    #     return graph
 
-        # 去除自环（i != j） cqwsdc dswc cvdswd
-        edges = edges[edges[:, 0] != edges[:, 1]]  # 排除(i, i)的情况
+    # def dfs(graph, node, visited):
+    #     visited.add(node)
+    #     for neighbor in graph[node]:
+    #         if neighbor not in visited:
+    #             dfs(graph, neighbor, visited)
 
-        # 构建图的邻接表
-        graph = {i: [] for i in range(num_nodes)}
-        for edge in edges:
-            graph[edge[0].item()].append(edge[1].item())
-
-        return graph
-
-    # 深度优先搜索（DFS）遍历图，找到可达节点
-    def dfs(graph, node, visited):
-        visited.add(node)
-        for neighbor in graph[node]:
-            if neighbor not in visited:
-                dfs(graph, neighbor, visited)
-
-    # 构建图
-    graph = build_graph_optimized(pred_adj)
-
-    # 用于记录从中心节点可达的所有节点
-    visited = set()
-
-    # 从中心节点开始DFS遍历
-    dfs(graph, center_node, visited)
-
-    # 检查每个节点与中心节点的连通性
-    for node in range(pred_adj.size(0)):
-        if node not in visited:
-            print(f"节点 {node} 无法到达中心节点 {center_node}")
-            for j in range(num_nodes):
-                if pred_adj[j,node]==1:
-                    print(j)
+    # graph = build_graph_optimized(pred_adj)
+    # visited = set()
+    # dfs(graph, center_node, visited)
+    # for node in range(pred_adj.size(0)):
+    #     if node not in visited:
+    #         print(f"节点 {node} 无法到达中心节点 {center_node}")
+    #         for j in range(num_nodes):
+    #             if pred_adj[j,node]==1:
+    #                 print(j)
 
     loss = MST + SPT + not_reached
     print('_________________________________________________________________________________')
@@ -249,6 +221,33 @@ def main():
 
 
     # plot_graph(pred_adj)
+    params = {
+        "n": n,
+        "p": p,
+        "center_node": center_node,
+        "subgraph_node": subgraph_node,
+        "seed": seed,
+        "Whether random_graph": random_graph,
+        "train_iterations_1": train_iterations_1,
+        "train_iterations_2": train_iterations_2,
+        "train_iterations_3": train_iterations_3,
+        "whether use not reached penalty in first stage": not_reached_penalty,
+        "whether use lora in third stage": lor,
+        "lora_rank":lora_rank,
+        "lr": lr,
+        'loss_iterations': loss_args['loss_iterations'],
+        'lamda': loss_args['lamda'],
+        'not_reached_weight': loss_args['not_reached_weight'],
+        'number of nodes':len(Graph.g.nodes()),
+        'number of edges,':len(Graph.g.edges()),
+        'SPT loss':SPT.item(),
+        'MST loss':MST.item(),
+        'not reached':not_reached.item(),
+        'total loss':loss.item()
+    }
+    params_file = os.path.join(output_dir, "parameters.json")
+    with open(params_file, "w") as f:
+        json.dump(params, f, indent=4)
 
 if __name__ == '__main__':
     main()

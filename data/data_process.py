@@ -3,7 +3,7 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 import pickle
-from .utils.softmax import *
+from ..utils.softmax import *
 def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
     df = pd.read_csv('distance.csv', header=None)
     num_nodes = df[0].max()
