@@ -8,13 +8,13 @@ from datetime import datetime
 import os
 import json
 import csv
-
+import time
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 1   
+    subgraph_node = 3
     seed = 44
     train_iterations_1 = 150
     train_iterations_2 = 150
@@ -71,13 +71,15 @@ def main():
     先将待优化参数解码为对应矩阵，
     再使用custom_loss_1损失函数
     '''
-
+    
     csv_file = os.path.join(output_dir, "training_log_1.csv")
     with open(csv_file, mode='w', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=["epoch", "SPTC", "MSTC", "loss"])
         writer.writeheader()
 
     progress_bar=tqdm(range(train_iterations_1), desc=f"First Optimization", dynamic_ncols=True)
+
+    start_time = time.time()
     for epoch in progress_bar:
         optimizer.zero_grad()
         pred_adj = param_to_adj(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr])
@@ -98,7 +100,8 @@ def main():
                 "MSTC": f"{MST:.4f}",
                 "loss": f"{loss:.4f}"
             })
-
+    end_time = time.time()
+    s1_time = -start_time + end_time
     '''
     第二阶段优化，
     先将待优化参数解码为对应矩阵，
@@ -110,6 +113,8 @@ def main():
         writer.writeheader()
 
     progress_bar = tqdm(range(train_iterations_2), desc=f"Second Optimization", dynamic_ncols=True)
+
+    start_time = time.time()
     for epoch in progress_bar:
         optimizer.zero_grad()
         pred_adj = param_to_adj(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr])
@@ -132,7 +137,8 @@ def main():
                 "not_reached":f"{not_reached:.4f}",
                 "loss": f"{loss:.4f}"
             })
-    
+    end_time = time.time()
+    s2_time = -start_time + end_time
     '''
     第三阶段优化，
     先将待优化参数解码为对应矩阵+lora矩阵，
@@ -144,6 +150,8 @@ def main():
         writer.writeheader()
 
     progress_bar = tqdm(range(train_iterations_3), desc=f"Third Optimization", dynamic_ncols=True)
+
+    start_time = time.time()
     for epoch in progress_bar:
         optimizer.zero_grad()
         lora_P=torch.mm(lora_Q,lora_K)
@@ -169,11 +177,12 @@ def main():
                 "not_reached":f"{not_reached:.4f}",
                 "loss": f"{loss:.4f}"
             })
+    end_time = time.time()
+    s3_time = -start_time + end_time
 
     lora_P=torch.mm(lora_Q,lora_K)
     if not lor:
-        lora_P=None
-    
+        lora_P=None 
     # for i in range(len(pred_adj)):
     #     for j in range(len(pred_adj)):
     #         print(f'{pred_adj[i,j]:.1f}',end=' ')
@@ -243,7 +252,11 @@ def main():
         'SPT loss':SPT.item(),
         'MST loss':MST.item(),
         'not reached':not_reached.item(),
-        'total loss':loss.item()
+        'total loss':loss.item(),
+        'first optimization time': s1_time,
+        'seconed optimization time': s2_time,
+        'third optimization time': s3_time,
+        'total time':s1_time+s2_time+s3_time
     }
     params_file = os.path.join(output_dir, "parameters.json")
     with open(params_file, "w") as f:
