@@ -21,8 +21,10 @@ def main():
     train_iterations_3 = 150
     lr = 0.1
     random_graph = False
+    alpha = 1.0
     lor = True
     lora_rank = 2
+    d = torch.tensor(lora_rank).to(device)
     not_reached_penalty = False #in first optimization
     if not_reached_penalty:
         train_iterations_2 += train_iterations_1
@@ -154,7 +156,7 @@ def main():
     start_time = time.time()
     for epoch in progress_bar:
         optimizer.zero_grad()
-        lora_P=torch.mm(lora_Q,lora_K)
+        lora_P=torch.mm(lora_Q,lora_K) / torch.sqrt(d) * alpha
         if not lor:
             lora_P=None
         pred_adj = param_to_adj(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr],lora=lora_P)
@@ -180,7 +182,7 @@ def main():
     end_time = time.time()
     s3_time = -start_time + end_time
 
-    lora_P=torch.mm(lora_Q,lora_K)
+    lora_P=torch.mm(lora_Q,lora_K) / torch.sqrt(d) * alpha
     if not lor:
         lora_P=None 
     # for i in range(len(pred_adj)):
