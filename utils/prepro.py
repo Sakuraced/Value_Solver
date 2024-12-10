@@ -87,16 +87,19 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
 
     edge_index = torch.tensor(list(G.edges)).t().contiguous()
     x = torch.tensor(node_features, dtype=torch.float)
+    
     edge_attr = []
-    for u, v, data in G.edges(data=True):
-        edge_attr.append(data['weight'])
-    edge_attr = torch.tensor(edge_attr, dtype=torch.float)
-    edge_attr=torch.exp(-edge_attr)
-
     adj_matrix = torch.zeros((len(G.nodes),len(G.nodes))).to(device)
     for u, v, data in G.edges(data=True):
+        edge_attr.append(data['weight'])
         adj_matrix[u, v]=data['weight']
         adj_matrix[v, u]=data['weight']
+
+    edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+
+    edge_attr=torch.exp(-edge_attr)
+
+
 
     adj0_matrix = copy.deepcopy(adj_matrix)
     large_number = 1e5

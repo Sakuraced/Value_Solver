@@ -14,7 +14,7 @@ def main():
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 3
+    subgraph_node = 8
     seed = 44
     train_iterations_1 = 150
     train_iterations_2 = 150

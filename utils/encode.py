@@ -65,3 +65,27 @@ def param_to_adj_work(graph, param_mask, param,lora=None):
     pred_adj = pred_adj.T
 
     return pred_adj
+
+
+def matrix_to_adj(graph, param_mask, matrix):
+    n = graph.x.size()[0]
+    center_node = graph.center_node
+
+
+    edge_index = graph.edge_index
+    device = graph.device
+    mask = torch.zeros((n, n)).to(device)
+    mask[center_node, center_node] = 1
+    mask[edge_index[0, param_mask], edge_index[1, param_mask]] = 1
+    mask[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = 1
+    
+
+    pred_adj = masked_softmax(matrix, mask)
+
+    pred_adj = pred_adj.T
+    _, max_indices = pred_adj.max(dim=-1, keepdim=True)
+    y_hard = torch.zeros_like(pred_adj).scatter_(-1, max_indices, 1.0)
+    pred_adj = (y_hard - pred_adj).detach() + pred_adj
+    pred_adj = pred_adj.T
+
+    return pred_adj
