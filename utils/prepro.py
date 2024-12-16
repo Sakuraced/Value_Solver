@@ -7,6 +7,15 @@ import torch
 import pandas as pd
 import pickle
 class Graph:
+    """
+    The Graph class
+    edge_index(2 * num_of_edge): the node index of every edge in the graph, the n_th edge is (edge_index[0][n], edge_index[1][n])
+    x(num_of_nodes): shortest path lengths from the given center_node to all other nodes in the graph
+    adj(num_of_nodes, num_of_nodes): adjacency matrix of the graph
+    weight_adj(num_of_nodes, num_of_nodes): weighted adjacency matrix of the graph
+    edge_attr(num_of_edges): normalized edge attributes of the graph
+    g: the graph stored as nx.Graph
+    """
     def __init__(self, edge_index, x, center_node=None, adj=None, weight_adj=None, edge_attr=None,g=None,device='cpu'):
         self.device=device
         self.edge_index = edge_index.to(device)
@@ -87,18 +96,12 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
 
     edge_index = torch.tensor(list(G.edges)).t().contiguous()
     x = torch.tensor(node_features, dtype=torch.float)
-    
-    edge_attr = []
-    adj_matrix = torch.zeros((len(G.nodes),len(G.nodes))).to(device)
-    for u, v, data in G.edges(data=True):
-        edge_attr.append(data['weight'])
-        adj_matrix[u, v]=data['weight']
-        adj_matrix[v, u]=data['weight']
 
-    edge_attr = torch.tensor(edge_attr, dtype=torch.float)
-
+    # 直接生成邻接矩阵
+    adj_matrix = torch.tensor(nx.to_numpy_array(G, weight='weight'), dtype=torch.float32).to(device)
+    # 提取边属性
+    edge_attr = torch.tensor([data['weight'] for _, _, data in G.edges(data=True)], dtype=torch.float)
     edge_attr=torch.exp(-edge_attr)
-
 
 
     adj0_matrix = copy.deepcopy(adj_matrix)

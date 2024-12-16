@@ -36,10 +36,13 @@ def main():
         如下代码，请给出一棵覆盖所有节点的Graph的子树的邻接矩阵pred_adj
         同时最小化如下损失函数, 为了test_loss正常计算，请自行保证生成满足一棵树
         '''
+        # begin your code
+
         pred_adj = simulated_annealing(graph=Graph,mask=mask) #torch(n,n)
-        '''
-        请在以上部分输入代码
-        '''
+
+        # end your code
+
+
         SPT, MST, not_reached = test_loss(P=pred_adj, g=Graph)
     
         loss = MST + SPT + not_reached

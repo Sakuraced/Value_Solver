@@ -5,6 +5,7 @@ from utils.softmax import masked_softmax
 import torch.nn.functional as F
 
 def mask_generation(node_features, edge_index):
+    # 掩码，根据要求去除一些边（将mask设为0）
     mask_1 = node_features[edge_index[0]] <= node_features[edge_index[1]]
     # mask_2 = node_features[edge_index[0]] == node_features[edge_index[1]]
     # mask = torch.logical_or(mask_1, mask_2)
