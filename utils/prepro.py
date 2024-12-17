@@ -71,7 +71,7 @@ def generate_random_graph(n, p, center_node=0, seed=None,device='cpu'):
     edge_attr = torch.tensor(edge_attr, dtype=torch.float)
     edge_attr=torch.exp(-edge_attr)
 
-    adj_matrix = nx.to_numpy_matrix(G)
+    adj_matrix = nx.to_numpy_array(G)
 
     adj_matrix = torch.tensor(adj_matrix, dtype=torch.float)
     adj0_matrix = copy.deepcopy(adj_matrix)
@@ -98,7 +98,7 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
     x = torch.tensor(node_features, dtype=torch.float)
 
     # 直接生成邻接矩阵
-    adj_matrix = torch.tensor(nx.to_numpy_array(G, weight='weight'), dtype=torch.float32).to(device)
+    adj_matrix = torch.tensor(nx.to_numpy_array(G,nodelist=sorted(G.nodes), weight='weight'), dtype=torch.float32).to(device)
     # 提取边属性
     edge_attr = torch.tensor([data['weight'] for _, _, data in G.edges(data=True)], dtype=torch.float)
     edge_attr=torch.exp(-edge_attr)
