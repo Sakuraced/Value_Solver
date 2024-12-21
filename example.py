@@ -15,7 +15,7 @@ def main():
     center_node = 0
     seed = 44
     random_graph = False
-    subgraph_node = 0
+    subgraph_node = 8
     test_epoch = 5
     print('initializing graph...')
     if random_graph:

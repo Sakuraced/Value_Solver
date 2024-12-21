@@ -245,6 +245,7 @@ def main():
         "whether use not reached penalty in first stage": not_reached_penalty,
         "whether use lora in third stage": lor,
         "lora_rank":lora_rank,
+        "lora_alpha":1.0,
         "lr": lr,
         'loss_iterations': loss_args['loss_iterations'],
         'lamda': loss_args['lamda'],
