@@ -8,11 +8,12 @@ from matplotlib.style.core import available
 from torch_geometric.nn import GCNConv
 import random
 from utils.prepro import calculate_node_features, Graph
+from utils.encode import mask_to_adj
 import copy
 
 # Define the graph environment
 class GraphEnv:
-    def __init__(self, graph, center):
+    def __init__(self, graph, center, mask):
         self.graph = graph
         self.center = center
         self.adj_matrix = None
@@ -21,6 +22,7 @@ class GraphEnv:
         self.selected_nodes = {self.center}
         self.current_cost = 0
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.mask = mask
 
     def reset(self):
         # 初始化邻接矩阵，未选中的边设为0
@@ -39,23 +41,25 @@ class GraphEnv:
         u, v, weight = action
         self.selected_edges.add((u, v))
         self.adj_matrix[u, v] = weight
-        self.adj_matrix[v, u] = weight
         self.selected_nodes.update({u, v})
         self.current_cost += weight
-        reward = -weight  # 最小化权重
+        reward = -weight
 
         done = len(self.selected_nodes) == len(self.graph.nodes)
         return self.get_state(), reward, done
 
     def get_available_actions(self):
-        adj_graph = torch.tensor(np.zeros((len(self.graph.nodes), len(self.graph.nodes))), dtype=torch.float32).to(self.device)
+        n = len(self.graph.nodes)
+        adj_ava = torch.zeros((n, n), dtype=torch.float32).to(self.device)
         available_node = [k for k in range(len(self.graph.nodes)) if k not in self.selected_nodes]
         for i in self.selected_nodes:
             for j in available_node:
                 if self.graph.has_edge(i, j):
-                    adj_graph[i, j] = self.graph[i][j].get('weight', None)
+                    adj_ava[i, j] = self.graph[i][j].get('weight', None)
+        if self.mask is not None:
+            adj_ava = adj_ava * self.mask
         have_actions = len(self.selected_nodes) < len(self.graph.nodes)
-        return adj_graph, have_actions
+        return adj_ava, have_actions
 
 # Define the policy network
 class PolicyNetwork(nn.Module):
@@ -76,26 +80,23 @@ class PolicyNetwork(nn.Module):
 
 # Define the reinforcement learning agent
 class RLAgent:
-    def __init__(self, graph, center, input_dim, hidden_dim, lr=0.01):
+    def __init__(self, graph, center, input_dim, hidden_dim, lr=0.01, mask=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.env = GraphEnv(graph, center)
+        self.env = GraphEnv(graph, center, mask=mask)
         self.policy_net = PolicyNetwork(input_dim, hidden_dim).to(self.device)  # Move the model to GPU
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.log_probs = []
         self.rewards = []
 
     def select_action(self, state, available_actions):
-        # 将邻接矩阵转为图神经网络的输入格式
-        adj_matrix = torch.tensor(state, dtype=torch.float32).to(self.device)  # Move to GPU
-        edge_index = torch.tensor(list(self.env.graph.edges), dtype=torch.long).t().contiguous().to(self.device)  # Move to GPU
-        # 使用策略网络计算邻接矩阵分数
+        adj_matrix = torch.tensor(state, dtype=torch.float32).to(self.device)
+        edge_index = torch.tensor(list(self.env.graph.edges), dtype=torch.long).t().contiguous().to(self.device)
+        # 计算邻接矩阵分数
         adj_scores = self.policy_net(adj_matrix, edge_index)
-        detached_scores = adj_scores.detach()
-        # 筛选可用动作
         adj_act = torch.where(available_actions == 0, torch.tensor(float('-inf')).to(self.device), adj_scores)
         # 计算概率分布并采样动作
         probs = torch.softmax(adj_act.flatten(), dim=0)
-        select_index = torch.multinomial(probs, 1).item()
+        select_index = torch.argmax(probs).item()
         self.log_probs.append(probs[select_index])
         x, y = divmod(select_index, adj_act.size(1))
         selected_action = (x, y, available_actions[x][y])
@@ -170,17 +171,19 @@ def generate_graph(n, weight_range=(1, 100)):
         g[u][v]['weight'] = random.randint(*weight_range)  # 随机权值
     return g
 
-def rl_based_solve(graph, num_episodes):
+def rl_based_solve(graph, mask, num_episodes):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     g = graph.g
+    mask_adj = mask_to_adj(graph=graph, mask=mask)
     num_nodes = len(g.nodes)
     center_node = graph.center_node
-    agent = RLAgent(g, center=center_node, input_dim=num_nodes, hidden_dim=16, lr=0.01)
+    agent = RLAgent(g, center=center_node, input_dim=num_nodes, hidden_dim=16, lr=0.01, mask=mask_adj)
     agent.train(episodes=num_episodes)
+
     final_edge = agent.get_final_edge()
     final_tree = torch.zeros((num_nodes, num_nodes)).to(device)
     for u, v in final_edge:
-        final_tree[v, u] = final_tree[u, v] = 1
+        final_tree[u, v] = 1
     return final_tree
 # Main execution
 

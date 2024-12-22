@@ -1,6 +1,8 @@
 import copy
 
 import torch
+from torch.xpu import device
+
 from utils.softmax import masked_softmax
 import torch.nn.functional as F
 
@@ -90,3 +92,15 @@ def matrix_to_adj(graph, param_mask, matrix):
     pred_adj = pred_adj.T
 
     return pred_adj
+
+def mask_to_adj(graph, mask):
+    """
+    将边序列表达的mask转为邻接矩阵的形式
+    """
+    n = graph.x.size()[0]
+    device = graph.device
+    edge_index = graph.edge_index
+    matrix = torch.zeros((n, n), dtype=torch.float32).to(device)
+    matrix[edge_index[0, mask], edge_index[1, mask]] = 1
+    matrix[edge_index[1, ~mask], edge_index[0, ~mask]] = 1
+    return matrix

@@ -39,8 +39,8 @@ def main():
         '''
         # begin your code
 
-        pred_adj = simulated_annealing(graph=Graph,mask=mask) #torch(n,n)
-        # pred_adj = rl_based_solve(graph=Graph, num_episodes=100)
+        # pred_adj = simulated_annealing(graph=Graph,mask=mask) #torch(n,n)
+        pred_adj = rl_based_solve(graph=Graph, num_episodes=100, mask=mask)
         # end your code
 
 
