@@ -1,10 +1,11 @@
 import torch
-from utils.loss import custom_loss_2, test_loss
+from utils.loss import custom_loss_2, test_loss, new_test_loss
 import torch
 from utils.encode import mask_generation, matrix_to_adj
 from utils.prepro import generate_random_graph, generate_real_graph
 from other_methods.GA import genetic_algorithm
 from other_methods.SA import simulated_annealing
+from other_methods.RL import rl_based_solve
 import statistics
 
  # 样本方差
@@ -39,7 +40,7 @@ def main():
         # begin your code
 
         pred_adj = simulated_annealing(graph=Graph,mask=mask) #torch(n,n)
-
+        # pred_adj = rl_based_solve(graph=Graph, num_episodes=100)
         # end your code
 
 

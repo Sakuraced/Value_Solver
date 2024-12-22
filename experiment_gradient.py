@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from utils.loss import custom_loss_1, custom_loss_2, test_loss
+from utils.loss import custom_loss_1, custom_loss_2, test_loss, new_test_loss
 from utils.encode import mask_generation, param_to_adj,param_to_adj_work
 from utils.prepro import generate_random_graph, generate_real_graph
 from tqdm import tqdm
