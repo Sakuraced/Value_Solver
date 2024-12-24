@@ -13,7 +13,7 @@ def custom_loss_1(P, Graph, loss_args):
     P_weight = g.weight_adj
     device = g.device
     n=P.size()[0]
-    K = torch.ones(n,device=device)
+    K = g.K
     nw = torch.mul(P,P_weight)
     nodes_weight = torch.matmul(torch.ones(n,device=device), nw)
     min_path=0
@@ -46,7 +46,7 @@ def test_loss(P, g):
     P_weight = g.weight_adj
     device = g.device
     n=P.size()[0]
-    K = torch.ones(n,device=device)
+    K = g.K
     nw = torch.mul(P,P_weight)
     nodes_weight = torch.matmul(torch.ones(n,device=device), nw)
     min_path=0

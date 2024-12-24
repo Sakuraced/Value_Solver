@@ -3,11 +3,14 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 import pickle
-from ..utils.softmax import *
+
 def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
     df = pd.read_csv('distance.csv', header=None)
-    num_nodes = df[0].max()
+    df2 = pd.read_csv("node.csv",encoding = "gbk")
+    num_nodes = df2["id"].max()
     G = nx.Graph()
+    nodes = [(int(row["id"])-1, {"weight":row["need"]}) for _, row in df2.iterrows()]
+    G.add_nodes_from(nodes)
     # 构造边的列表
     edges = df.to_numpy()  # 转换为NumPy数组，避免逐行处理
     print('building graph')
@@ -35,6 +38,7 @@ def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
 
         # 从原图中提取子图
         subgraph = G.subgraph(subgraph_nodes).copy()
+        subgraph.remove_nodes_from(list(nx.isolates(subgraph)))  # 节点有了权重之后提取子图默认不删独立点，得帮它删了
         nodes = list(subgraph.nodes())
 
         # 确保中心节点在图中
@@ -46,9 +50,20 @@ def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
 
         # 创建新的编号映射
         mapping = {node: idx for idx, node in enumerate(ordered_nodes)}
-        # print(mapping)
         # 使用networkx的relabel_nodes进行重标
         relabeled_subgraph = nx.relabel_nodes(subgraph, mapping)
+
+        # 用来输出到文件看看点的权值继承对不对
+        # nod_sub = subgraph.nodes(data=True)
+        # nod_relabel = relabeled_subgraph.nodes(data=True)
+        # print(mapping)
+        # with open("output_raw.txt", "w", encoding="utf-8") as f:
+        #     for node, attrs in nod_sub:
+        #         f.write(f"{node}: {attrs}\n")
+        # with open("output_relabel.txt", "w", encoding="utf-8") as f:
+        #     for node, attrs in nod_relabel:
+        #         f.write(f"{node}: {attrs}\n")
+
         # subgraph = nx.relabel_nodes(subgraph, {node: idx for idx, node in enumerate(subgraph.nodes())})
         # print(subgraph.nodes())
 

@@ -1,4 +1,6 @@
 import copy
+
+from numpy import dtype
 from tqdm import tqdm
 import numpy as np
 import random
@@ -15,6 +17,7 @@ class Graph:
     weight_adj(num_of_nodes, num_of_nodes): weighted adjacency matrix of the graph
     edge_attr(num_of_edges): normalized edge attributes of the graph
     g: the graph stored as nx.Graph
+    K(num_of_nodes): the need of nodes
     """
     def __init__(self, edge_index, x, center_node=None, adj=None, weight_adj=None, edge_attr=None,g=None,device='cpu'):
         self.device=device
@@ -26,6 +29,8 @@ class Graph:
         self.normalized_weight_adj=torch.exp(-(self.weight_adj-torch.diag((torch.diag(self.weight_adj))))).to(device)
         self.g=g
         self.center_node=center_node
+        self.K=torch.tensor([data["weight"] for _, data in g.nodes(data=True)], dtype=torch.float32).to(device)
+
     def degrees(self):
         source_nodes = self.edge_index[0]
         degrees = torch.bincount(source_nodes, minlength=self.x.size(0))
@@ -43,9 +48,12 @@ class Graph:
         print(self.weight_adj)
         print("normalized_weight_adj:", self.normalized_weight_adj.size())
         print(self.normalized_weight_adj)
+        print(f"K{self.K.size()}")
+        print(self.K)
 
 def calculate_node_features(G, center_node):
     length = nx.single_source_dijkstra_path_length(G, center_node, weight='weight')
+    print(len(G.nodes()))
     features = {node: length[node] for node in G.nodes()}
     features = np.array([features[node] for node in range(len(G.nodes()))])
     return features
@@ -116,4 +124,13 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
                   edge_attr=edge_attr, g=G, device=device)
 
     return graph
+
+
+def generate_complete_graph(n, weight_range=(1, 100)):
+    # 创建随机权值的完全图
+    g = nx.complete_graph(n)  # 完全图结构
+    # 为每条边添加随机权重
+    for u, v in g.edges():
+        g[u][v]['weight'] = random.randint(*weight_range)  # 随机权值
+    return g
 
