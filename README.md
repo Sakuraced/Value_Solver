@@ -6,6 +6,8 @@
 
 `data` 目录中的 `distance.csv` 存储了粤港澳大湾区的物流节点之间边的距离，其中编号为 0-10 的节点为中心节点，它们与任何节点之间都存在边。
 
+`node.csv`记录了点权（包含每个点的经纬度和流量需求）
+
 运行 `data` 目录下的 `data_process.py` 以构建数据集。第一次运行时，请确保 `data` 目录底部有 `distance.csv` 文件，只需运行一次加载数据集。运行结束后，`data` 目录下会出现 `subgraph_n.gpickle` 文件，其中 `$n \in [0, 10]$`，后续无需再运行。
 
 ## Value_Solver算法
