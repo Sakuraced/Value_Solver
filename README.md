@@ -10,6 +10,7 @@
 
 运行 `data` 目录下的 `data_process.py` 以构建数据集。第一次运行时，请确保 `data` 目录底部有 `distance.csv` 文件，只需运行一次加载数据集。运行结束后，`data` 目录下会出现 `subgraph_n.gpickle` 文件，其中 `$n \in [0, 10]$`，后续无需再运行。
 
+图以networkx.Graph()存储，其中点权为{"weight"：流量需求}，边权为 {"weight":实际距离, "construction": 建设成本, "transport": 运输成本}
 ## Value_Solver算法
 
 运行 `experiment_gradient.py` 以执行 `value_solver` 方法。

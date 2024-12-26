@@ -4,22 +4,35 @@ import networkx as nx
 import pandas as pd
 import pickle
 
+#  路径长度到建设成本的函数
+def construction_cost(length):
+    return length
+
+#  路径长度到运输成本的函数
+def transport_cost(length):
+    return length * 0.1
+
 def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
     df = pd.read_csv('distance.csv', header=None)
     df2 = pd.read_csv("node.csv",encoding = "gbk")
+    print('building graph')
+
     num_nodes = df2["id"].max()
     G = nx.Graph()
+
+    # 构造点
     nodes = [(int(row["id"])-1, {"weight":row["need"]}) for _, row in df2.iterrows()]
     G.add_nodes_from(nodes)
-    # 构造边的列表
-    edges = df.to_numpy()  # 转换为NumPy数组，避免逐行处理
-    print('building graph')
+
+    # 构造边
+    edges = df.to_numpy()
     # 减去1以调整索引（假设节点从1开始）
     edges[:, 0] -= 1  # 将 node1 减去 1
     edges[:, 1] -= 1  # 将 node2 减去 1
 
-    # 构造边的列表，其中每个元组 (node1, node2, {'weight': distance})
-    edge_list = [(int(node1), int(node2), {'weight': dist}) for node1, node2, dist in edges]
+    # 构造边的列表，其中每个元组 (node1, node2, {"weight":distance, "construction": 建设成本, "transport": 运输成本})
+    edge_list = [(int(node1), int(node2), {"weight":dist, "construction": construction_cost(dist), "transport":transport_cost(dist)})
+                 for node1, node2, dist in edges]
 
     # 批量添加边
     G.add_edges_from(edge_list)
