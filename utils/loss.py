@@ -22,7 +22,7 @@ def custom_loss_1(P, Graph, loss_args):
         K = torch.matmul(P, K)
         # if torch.all(K[1:] <= 0.1):
         #     break
-    return min_path * lamda, (1 - lamda) * nw.sum()
+    return 1/n*min_path * lamda, (1 - lamda) * nw.sum()
 
 def custom_loss_2(P, g, loss_args):
     lamda = loss_args['lamda']
@@ -31,7 +31,7 @@ def custom_loss_2(P, g, loss_args):
     P_weight = g.weight_adj
     device = g.device
     n=P.size()[0]
-    K = torch.ones(n,device=device)
+    K = g.K
     nw = torch.mul(P,P_weight)
     nodes_weight = torch.matmul(torch.ones(n,device=device), nw)
     min_path=0
@@ -39,7 +39,7 @@ def custom_loss_2(P, g, loss_args):
         min_path += torch.dot(nodes_weight, K)
         K = torch.matmul(P, K)
     not_reached = torch.matmul(K, g.x).sum()
-    return min_path * lamda, (1 - lamda) * nw.sum(), not_reached * not_reached_weight
+    return 1/n*min_path * lamda, (1 - lamda) * nw.sum(), not_reached * not_reached_weight
 
 def test_loss(P, g):
     iterations = 100
@@ -56,7 +56,7 @@ def test_loss(P, g):
 
     not_reached = torch.matmul(K, g.x).sum()
 
-    return  min_path, nw.sum(), not_reached
+    return  1/n*min_path, nw.sum(), not_reached
 
 
 def new_test_loss(P, g):
@@ -86,5 +86,5 @@ def new_test_loss(P, g):
     # print(dist_matrix)
     # print(min_path)
     not_reached = torch.tensor(0)  # not_reached不管哈哈哈
-    return min_path, nw.sum(), not_reached
+    return 1/n*min_path, nw.sum(), not_reached
 

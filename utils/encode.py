@@ -26,8 +26,6 @@ def param_to_adj(graph, param_mask, param, lora=None):
     mask[edge_index[0, param_mask], edge_index[1, param_mask]] = 1
     mask[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = 1
     
-    # for i in range(n):
-    #     print(f'{mask[i,0].item():.1f}')
     pred_adj = torch.zeros((n, n)).to(device)
     pred_adj[center_node, center_node] = param[0][0]
     pred_adj[edge_index[0, param_mask], edge_index[1, param_mask]] = param[1][param_mask]
@@ -49,7 +47,6 @@ def param_to_adj_work(graph, param_mask, param,lora=None):
     mask[center_node, center_node] = 1
     mask[edge_index[0, param_mask], edge_index[1, param_mask]] = 1
     mask[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = 1
-
     pred_adj = torch.zeros((n, n)).to(device)
     pred_adj[center_node, center_node] = param[0][0]
     pred_adj[edge_index[0, param_mask], edge_index[1, param_mask]] = param[1][param_mask]

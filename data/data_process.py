@@ -13,8 +13,8 @@ def transport_cost(length):
     return length * 0.1
 
 def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
-    df = pd.read_csv('distance.csv', header=None)
-    df2 = pd.read_csv("node.csv",encoding = "gbk")
+    df = pd.read_csv('data/distance.csv', header=None)
+    df2 = pd.read_csv("data/node.csv",encoding = "gbk")
     print('building graph')
 
     num_nodes = df2["id"].max()
@@ -81,7 +81,7 @@ def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
         # print(subgraph.nodes())
 
         # print(relabeled_subgraph.nodes())
-        with open(f'subgraph_{center}.gpickle', "wb") as f:
+        with open(f'data/subgraph_{center}.gpickle', "wb") as f:
             pickle.dump(relabeled_subgraph, f)
         # nx.write_gpickle(relabeled_subgraph, f'subgraph_{center}.gpickle')
 
