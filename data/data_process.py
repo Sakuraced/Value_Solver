@@ -6,7 +6,7 @@ import pickle
 
 #  路径长度到建设成本的函数
 def construction_cost(length):
-    return length
+    return length*10
 
 #  路径长度到运输成本的函数
 def transport_cost(length):
