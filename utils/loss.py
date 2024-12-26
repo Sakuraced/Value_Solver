@@ -7,48 +7,58 @@ from scipy.sparse import csr_matrix
 import numpy as np
 
 def custom_loss_1(P, Graph, loss_args):
+    """
+    P是pred_adj
+    Graph是原图
+    """
     g=Graph
     lamda = loss_args['lamda']
     iterations = loss_args['loss_iterations']
-    P_weight = g.weight_adj
+    P_transport = g.transport_adj
+    P_construction = g.construction_adj
     device = g.device
     n=P.size()[0]
     K = g.K
-    nw = torch.mul(P,P_weight)
-    nodes_weight = torch.matmul(torch.ones(n,device=device), nw)
+    nw_trans = torch.mul(P,P_transport)
+    nw_cons = torch.mul(P,P_construction)
+    nodes_weight = torch.matmul(torch.ones(n,device=device), nw_trans)
     min_path=0
     for i in range(iterations):
         min_path += torch.dot(nodes_weight, K)
         K = torch.matmul(P, K)
         # if torch.all(K[1:] <= 0.1):
         #     break
-    return 1/n*min_path * lamda, (1 - lamda) * nw.sum()
+    return 1/n*min_path * lamda, (1 - lamda) * nw_cons.sum()
 
 def custom_loss_2(P, g, loss_args):
     lamda = loss_args['lamda']
     iterations = loss_args['loss_iterations']
     not_reached_weight = loss_args['not_reached_weight']
-    P_weight = g.weight_adj
+    P_transport = g.transport_adj
+    P_construction = g.construction_adj
     device = g.device
     n=P.size()[0]
     K = g.K
-    nw = torch.mul(P,P_weight)
-    nodes_weight = torch.matmul(torch.ones(n,device=device), nw)
+    nw_trans = torch.mul(P, P_transport)
+    nw_cons = torch.mul(P, P_construction)
+    nodes_weight = torch.matmul(torch.ones(n,device=device), nw_trans)
     min_path=0
     for i in range(iterations):
         min_path += torch.dot(nodes_weight, K)
         K = torch.matmul(P, K)
     not_reached = torch.matmul(K, g.x).sum()
-    return 1/n*min_path * lamda, (1 - lamda) * nw.sum(), not_reached * not_reached_weight
+    return 1/n*min_path * lamda, (1 - lamda) * nw_cons.sum(), not_reached * not_reached_weight
 
 def test_loss(P, g):
     iterations = 100
-    P_weight = g.weight_adj
+    P_transport = g.transport_adj
+    P_construction = g.construction_adj
     device = g.device
     n=P.size()[0]
     K = g.K
-    nw = torch.mul(P,P_weight)
-    nodes_weight = torch.matmul(torch.ones(n,device=device), nw)
+    nw_trans = torch.mul(P, P_transport)
+    nw_cons = torch.mul(P, P_construction)
+    nodes_weight = torch.matmul(torch.ones(n, device=device), nw_trans)
     min_path=0
     for i in range(iterations):
         min_path += torch.dot(nodes_weight, K)
@@ -56,7 +66,7 @@ def test_loss(P, g):
 
     not_reached = torch.matmul(K, g.x).sum()
 
-    return  1/n*min_path, nw.sum(), not_reached
+    return  1/n*min_path, nw_cons.sum(), not_reached
 
 
 def new_test_loss(P, g):
