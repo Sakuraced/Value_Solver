@@ -30,6 +30,7 @@ def main():
         train_iterations_2 += train_iterations_1
         train_iterations_1 = 0
     loss_args={'loss_iterations': 20, 'lamda': 0.05, 'not_reached_weight': 10}
+    pic_args={'self_loop':False}
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if random_graph:
@@ -43,7 +44,7 @@ def main():
     if random_graph:
         Graph = generate_random_graph(n = n, p = p, seed = seed, center_node=center_node, device=device)
     else:
-        Graph = generate_real_graph(subgraph_node=subgraph_node,center_node=center_node, device=device)
+        Graph = generate_real_graph(subgraph_node=subgraph_node,center_node=center_node, device=device, args=pic_args)
     print('number of nodes:',len(Graph.g.nodes()))
     print('number of edges:',len(Graph.g.edges()))
 

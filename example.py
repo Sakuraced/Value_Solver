@@ -19,11 +19,13 @@ def main():
     random_graph = False
     subgraph_node = 8
     test_epoch = 5
+    pic_args = {'self_loop': True}
+
     print('initializing graph...')
     if random_graph:
         Graph = generate_random_graph(n = n, p = p, seed = seed, center_node=center_node, device=device)
     else:
-        Graph = generate_real_graph(subgraph_node=subgraph_node,center_node=center_node, device=device)
+        Graph = generate_real_graph(subgraph_node=subgraph_node,center_node=center_node, device=device, args=pic_args)
     print('number of nodes:',len(Graph.g.nodes()))
     print('number of edges:',len(Graph.g.edges()))
     mask = mask_generation(node_features=Graph.x, edge_index=Graph.edge_index).to(device)

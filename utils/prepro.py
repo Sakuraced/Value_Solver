@@ -98,7 +98,7 @@ def generate_random_graph(n, p, center_node=0, seed=None,device='cpu'):
 
     return graph
 
-def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
+def generate_real_graph(subgraph_node=0, center_node=0,device='cpu', args=None):
     """
     从文件中加载图
     subgraph_node:图编号
@@ -115,7 +115,8 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
     self_edge_list = [(i, i, {"weight":1e-10, "construction": 0, "transport":large_number})
                  for i in range(len(G.nodes))if K[i]==0]
 
-    # G.add_edges_from(self_edge_list)
+    if args["self_loop"]:
+        G.add_edges_from(self_edge_list)
 
     edge_index = torch.tensor(list(G.edges)).t().contiguous()
     x = torch.tensor(node_features, dtype=torch.float)
