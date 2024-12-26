@@ -49,7 +49,9 @@ def custom_loss_2(P, g, loss_args):
     not_reached = torch.matmul(K, g.x).sum()
     return 1/n*min_path * lamda, (1 - lamda) * nw_cons.sum(), not_reached * not_reached_weight
 
-def test_loss(P, g):
+def test_loss(P, g, loss_args):
+    lamda = loss_args['lamda']
+    not_reached_weight = loss_args['not_reached_weight']
     iterations = 100
     P_transport = g.transport_adj
     P_construction = g.construction_adj
@@ -66,7 +68,7 @@ def test_loss(P, g):
 
     not_reached = torch.matmul(K, g.x).sum()
 
-    return  1/n*min_path, nw_cons.sum(), not_reached
+    return  1/n*min_path * lamda, (1 - lamda) * nw_cons.sum(), not_reached * not_reached_weight
 
 
 def new_test_loss(P, g):

@@ -111,10 +111,11 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
     # for i in range(len(G.nodes)):
     #     print(node_features[i])
     # node_features_array = np.array([node_features[node] for node in G.nodes()])
-    self_edge_list = [(i, i, {"weight":1e-10, "construction": 0, "transport":0})
+    large_number = 1e5
+    self_edge_list = [(i, i, {"weight":1e-10, "construction": 0, "transport":large_number})
                  for i in range(len(G.nodes))if K[i]==0]
 
-    G.add_edges_from(self_edge_list)
+    # G.add_edges_from(self_edge_list)
 
     edge_index = torch.tensor(list(G.edges)).t().contiguous()
     x = torch.tensor(node_features, dtype=torch.float)
@@ -129,7 +130,7 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
     transport_adj = torch.tensor(nx.to_numpy_array(G, nodelist=sorted(G.nodes), weight='transport'), dtype=torch.float32).to(device)
 
     adj_matrix[center_node, center_node] = 1
-    large_number = 1e5
+    
     transport_adj[adj_matrix == 0] = large_number
     transport_adj[center_node, center_node] = 0.0
     construction_adj[adj_matrix == 0] = large_number

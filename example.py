@@ -10,6 +10,7 @@ import statistics
 
  # 样本方差
 def main():
+    loss_args={'loss_iterations': 20, 'lamda': 0.05, 'not_reached_weight': 10}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     n = 1000
     p = 0.01
@@ -44,7 +45,7 @@ def main():
         # end your code
 
 
-        SPT, MST, not_reached = test_loss(P=pred_adj, g=Graph)
+        SPT, MST, not_reached = test_loss(P=pred_adj, g=Graph,loss_args=loss_args)
     
         loss = MST + SPT + not_reached
         SPT_list.append(SPT.item())

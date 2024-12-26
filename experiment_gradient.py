@@ -29,7 +29,7 @@ def main():
     if not_reached_penalty:
         train_iterations_2 += train_iterations_1
         train_iterations_1 = 0
-    loss_args={'loss_iterations': 20, 'lamda': 0.5, 'not_reached_weight': 10}
+    loss_args={'loss_iterations': 20, 'lamda': 0.05, 'not_reached_weight': 10}
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if random_graph:
@@ -197,7 +197,7 @@ def main():
         if pred_adj[i,i]==1:
             colsum-=1
     print(colsum)
-    SPT, MST, not_reached = test_loss(P=pred_adj, g=Graph)
+    SPT, MST, not_reached = test_loss(P=pred_adj, g=Graph, loss_args=loss_args)
 
     # num_nodes = pred_adj.size()[0]
 
