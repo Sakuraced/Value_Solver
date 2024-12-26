@@ -192,7 +192,11 @@ def main():
     pred_adj = param_to_adj_work(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr], lora=lora_P)
 
     col_sums = torch.count_nonzero(pred_adj, dim=0)
-    print(col_sums.sum())
+    colsum=col_sums.sum()
+    for i in range(1, n):
+        if pred_adj[i,i]==1:
+            colsum-=1
+    print(colsum)
     SPT, MST, not_reached = test_loss(P=pred_adj, g=Graph)
 
     # num_nodes = pred_adj.size()[0]

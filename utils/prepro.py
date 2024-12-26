@@ -98,9 +98,14 @@ def generate_real_graph(subgraph_node=0, center_node=0,device='cpu'):
     with open(f'data/subgraph_{subgraph_node}.gpickle', 'rb') as file:
         G = pickle.load(file)
     node_features = calculate_node_features(G, center_node)
+    K=torch.tensor([data["weight"] for _, data in G.nodes(data=True)], dtype=torch.float32).to(device)
     # for i in range(len(G.nodes)):
     #     print(node_features[i])
     # node_features_array = np.array([node_features[node] for node in G.nodes()])
+    self_edge_list = [(i, i, {"weight":0, "construction": 0, "transport":0})
+                 for i in range(len(G.nodes))if K[i]==0]
+
+    G.add_edges_from(self_edge_list)
 
     edge_index = torch.tensor(list(G.edges)).t().contiguous()
     x = torch.tensor(node_features, dtype=torch.float)
