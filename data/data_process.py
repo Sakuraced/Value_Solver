@@ -10,7 +10,20 @@ def construction_cost(length):
 
 #  路径长度到运输成本的函数
 def transport_cost(length):
-    return length * 0.1
+    d = length
+    e_tot = 7200000.0
+    r_max = 28.0
+    e_takeoff = 114000.0
+    n_cycle = 1500.0
+    c_battery = 10000.0
+    c_fly = 0.085
+    c_truck = 1.45
+    e_perkm = e_tot / r_max
+    if d <= 28:
+        c_tot = (c_fly*d) + (np.ceil((e_takeoff + e_perkm*d) / e_tot) * c_battery / n_cycle)
+    else:
+        c_tot = (4 - (d-28)/(300-28)) * c_truck*d
+    return c_tot
 
 def generate_real_graph(center_nodes=[0,1,2,3,4,5,6,7,8,9,10]):
     df = pd.read_csv('data/distance.csv', header=None)
