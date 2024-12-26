@@ -1,5 +1,5 @@
 .idea
-.gpickle
+*.gpickle
 **/__pycache__
 __init__.py
 output
