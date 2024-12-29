@@ -15,7 +15,7 @@ def simulated_annealing(graph, mask, loss_fn=custom_loss_2,max_iters=100, initia
     # 1. 随机初始化一个 n x n 的矩阵
     n=graph.x.size()[0]
     device = graph.device
-    loss_args = {'loss_iterations': 20, 'lamda': 0.5, 'not_reached_weight': 10}
+    loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
 
     X = torch.randn(n, n, requires_grad=False).to(device)  # 随机矩阵，默认不计算梯度
     

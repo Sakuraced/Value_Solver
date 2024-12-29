@@ -5,7 +5,7 @@ from utils.encode import mask_generation, matrix_to_adj
 from utils.prepro import generate_random_graph, generate_real_graph
 from other_methods.GA import genetic_algorithm
 from other_methods.SA import simulated_annealing
-from other_methods.RL import rl_based_solve
+# from other_methods.RL import rl_based_solve
 import statistics
 
  # 样本方差
@@ -17,8 +17,8 @@ def main():
     center_node = 0
     seed = 44
     random_graph = False
-    subgraph_node = 8
-    test_epoch = 5
+    subgraph_node = 1
+    test_epoch = 20
     pic_args = {'self_loop': True}
 
     print('initializing graph...')
@@ -58,7 +58,7 @@ def main():
         print('test_epoch:',i,'SPT loss:', SPT.item(), ' MST loss:', MST.item(), ' not reached', not_reached.item(),
           ' total loss:', loss.item())
     print('_________________________________________________________________________________')
-    print('Avg SPT loss:', SPT.item(), 'Avg MST loss:', MST.item(), 'Avg not reached', not_reached.item(),
-          'Avg total loss:', loss.item(), 'total loss variance:', statistics.variance(total_loss_list) )
+    print('Avg SPT loss:', sum(SPT_list)/test_epoch, 'Avg MST loss:', sum(MST_list)/test_epoch, 'Avg not reached', sum(not_reached_list)/test_epoch,
+          'Avg total loss:', sum(total_loss_list)/test_epoch, 'total loss variance:', statistics.variance(total_loss_list) )
 if __name__ == '__main__':
     main()
