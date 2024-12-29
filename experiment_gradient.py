@@ -14,7 +14,7 @@ def main():
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 8
+    subgraph_node = 1
     seed = 44
     train_iterations_1 = 150
     train_iterations_2 = 150
@@ -23,14 +23,14 @@ def main():
     random_graph = False
     alpha = 1.0
     lor = True
-    lora_rank = 2
+    lora_rank = 6
     d = torch.tensor(lora_rank).to(device)
     not_reached_penalty = False #in first optimization
     if not_reached_penalty:
         train_iterations_2 += train_iterations_1
         train_iterations_1 = 0
-    loss_args={'loss_iterations': 20, 'lamda': 0.05, 'not_reached_weight': 10}
-    pic_args={'self_loop':False}
+    loss_args={'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
+    pic_args={'self_loop':True}
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if random_graph:
@@ -194,7 +194,7 @@ def main():
 
     col_sums = torch.count_nonzero(pred_adj, dim=0)
     colsum=col_sums.sum()
-    for i in range(1, n):
+    for i in range(1, len(Graph.g.nodes())):
         if pred_adj[i,i]==1:
             colsum-=1
     print(colsum)
