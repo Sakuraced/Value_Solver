@@ -107,7 +107,7 @@ def mask_to_adj(graph, mask):
 def prune_directed_graph(adj_matrix, node_weights, center_node):
     n = len(node_weights)  # 节点数量
 
-    in_degrees = adj_matrix.sum(dim=1)  # 入度
+    in_degrees = adj_matrix.sum(dim=0)  # 入度
 
     # 找到初始的叶子节点
     stack = [i for i in range(n) if in_degrees[i] == 0 and node_weights[i] == 0]
