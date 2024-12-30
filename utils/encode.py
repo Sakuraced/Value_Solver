@@ -5,6 +5,7 @@ from torch.xpu import device
 
 from utils.softmax import masked_softmax
 import torch.nn.functional as F
+import numpy as np
 
 def mask_generation(node_features, edge_index):
     # 掩码，根据要求去除一些边（将mask设为0）
@@ -87,6 +88,7 @@ def matrix_to_adj(graph, param_mask, matrix):
     y_hard = torch.zeros_like(pred_adj).scatter_(-1, max_indices, 1.0)
     pred_adj = (y_hard - pred_adj).detach() + pred_adj
     pred_adj = pred_adj.T
+    pred_adj = prune_directed_graph(pred_adj, g.K.detach(), center_node)
 
     return pred_adj
 
@@ -101,3 +103,30 @@ def mask_to_adj(graph, mask):
     matrix[edge_index[0, mask], edge_index[1, mask]] = 1
     matrix[edge_index[1, ~mask], edge_index[0, ~mask]] = 1
     return matrix
+
+def prune_directed_graph(adj_matrix, node_weights, center_node):
+    n = len(node_weights)  # 节点数量
+    adj_matrix = np.array(adj_matrix)  # 转为 NumPy 数组方便操作
+    node_weights = np.array(node_weights)
+
+    # 初始化出度和入度数组
+    in_degrees = np.sum(adj_matrix > 0, axis=1)  # 入度
+
+    # 找到初始的叶子节点
+    stack = [i for i in range(n) if in_degrees[i] == 0 and node_weights[i] == 0]
+
+    while stack:
+        node = stack.pop()
+        if node == center_node:
+            continue
+        # 如果该节点点权为 0，则移除该节点
+        if node_weights[node] == 0:
+            for succ in range(n):  # 找到所有该节点指向的后继节点
+                if adj_matrix[node, succ] > 0:  # 存在边 node -> succ
+                    adj_matrix[node, succ] = 0  # 移除边
+                    in_degrees[succ] -= 1  # 更新后继节点的入度
+                    if in_degrees[succ] <= 0 and node_weights[succ] == 0:
+                        stack.append(succ)
+
+    # 返回剪枝后的邻接矩阵和点权
+    return adj_matrix.tolist()
