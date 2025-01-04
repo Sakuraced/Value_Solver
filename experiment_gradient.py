@@ -22,7 +22,7 @@ def main():
     lr = 0.1
     random_graph = False
     alpha = 1.0
-    lor = True
+    lor = False
     lora_rank = 6
     d = torch.tensor(lora_rank).to(device)
     not_reached_penalty = False #in first optimization
@@ -30,7 +30,7 @@ def main():
         train_iterations_2 += train_iterations_1
         train_iterations_1 = 0
     loss_args={'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
-    pic_args={'self_loop':True}
+    pic_args={'self_loop':False}
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if random_graph:

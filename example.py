@@ -5,6 +5,7 @@ from utils.encode import mask_generation, matrix_to_adj
 from utils.prepro import generate_random_graph, generate_real_graph
 from other_methods.GA import genetic_algorithm
 from other_methods.SA import simulated_annealing
+import time
 # from other_methods.RL import rl_based_solve
 import statistics
 
@@ -19,7 +20,7 @@ def main():
     random_graph = False
     subgraph_node = 1
     test_epoch = 20
-    pic_args = {'self_loop': True}
+    pic_args = {'self_loop': False}
 
     print('initializing graph...')
     if random_graph:
@@ -41,8 +42,10 @@ def main():
         同时最小化如下损失函数, 为了test_loss正常计算，请自行保证生成满足一棵树
         '''
         # begin your code
-
+        start=time.time()
         pred_adj = simulated_annealing(graph=Graph,mask=mask) #torch(n,n)
+        end=time.time()
+        print('time:',end-start)
         # pred_adj = rl_based_solve(graph=Graph, num_episodes=100, mask=mask)
         # end your code
 
@@ -59,6 +62,6 @@ def main():
           ' total loss:', loss.item())
     print('_________________________________________________________________________________')
     print('Avg SPT loss:', sum(SPT_list)/test_epoch, 'Avg MST loss:', sum(MST_list)/test_epoch, 'Avg not reached', sum(not_reached_list)/test_epoch,
-          'Avg total loss:', sum(total_loss_list)/test_epoch, 'total loss variance:', statistics.variance(total_loss_list) )
+          'Avg total loss:', sum(total_loss_list)/test_epoch, 'total loss cv:', statistics.variance(total_loss_list)/(sum(total_loss_list)/test_epoch) )
 if __name__ == '__main__':
     main()
