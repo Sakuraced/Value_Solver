@@ -15,12 +15,13 @@ import statistics
 def main():
     loss_args={'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device= 'cpu'
     n = 1000
     p = 0.01
     center_node = 0
     seed = 44
     random_graph = False
-    subgraph_node = 1
+    subgraph_node = 2
     test_epoch = 20
     pic_args = {'self_loop': False}
 
@@ -45,7 +46,7 @@ def main():
         '''
         # begin your code
         start=time.time()
-        pred_adj = artificial_bee_colony(graph=Graph,mask=mask) #torch(n,n)
+        pred_adj = genetic_algorithm(graph=Graph,mask=mask) #torch(n,n)
         end=time.time()
         print('time:',end-start)
         # pred_adj = rl_based_solve(graph=Graph, num_episodes=100, mask=mask)
