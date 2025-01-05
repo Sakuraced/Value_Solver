@@ -14,6 +14,15 @@ import copy
 
 # Define the graph environment
 class GraphEnv:
+    """
+        graph 原图
+        center 中心点
+        adj_matrix 已经选中的邻接矩阵
+        selected_edges 已经选中的边集
+        selected_nodes 已经选中的点集
+        current_cost 目前的总开销
+        device 加载的运算设备
+    """
     def __init__(self, graph, mask):
         self.graph = graph.g
         self.center = graph.center_node
