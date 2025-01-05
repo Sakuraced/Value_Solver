@@ -14,7 +14,7 @@ def main():
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 1
+    subgraph_node = 5
     seed = 44
     train_iterations_1 = 150
     train_iterations_2 = 150
@@ -22,13 +22,17 @@ def main():
     lr = 0.1
     random_graph = False
     alpha = 1.0
-    lor = False
+    lor = True
+    second_lor = True
     lora_rank = 6
     d = torch.tensor(lora_rank).to(device)
     not_reached_penalty = False #in first optimization
     if not_reached_penalty:
         train_iterations_2 += train_iterations_1
         train_iterations_1 = 0
+    if second_lor:
+        train_iterations_3 += train_iterations_2
+        train_iterations_2 = 0
     loss_args={'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
     pic_args={'self_loop':False}
 
@@ -121,6 +125,7 @@ def main():
     for epoch in progress_bar:
         optimizer.zero_grad()
         pred_adj = param_to_adj(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr])
+        
         SPT, MST, not_reached = custom_loss_2(P=pred_adj, g=Graph,loss_args=loss_args)
         loss = MST + SPT + not_reached
         progress_bar.set_postfix(SPTC=f"{SPT:.4f}",
