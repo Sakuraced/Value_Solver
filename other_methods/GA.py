@@ -8,7 +8,7 @@ from utils.prepro import generate_random_graph, generate_real_graph
 from tqdm import tqdm
 from datetime import datetime
 
-def genetic_algorithm(graph, mask, population_size=50, loss_fn = custom_loss_2,generations=20, mutation_rate=0.1, crossover_rate=0.8):
+def genetic_algorithm(graph, mask, population_size=50, loss_fn = custom_loss_2,generations=50, mutation_rate=0.1, crossover_rate=0.8):
     # 初始化参数
     n=graph.x.size()[0]
     device = graph.device

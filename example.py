@@ -5,7 +5,9 @@ from utils.encode import mask_generation, matrix_to_adj
 from utils.prepro import generate_random_graph, generate_real_graph
 from other_methods.GA import genetic_algorithm
 from other_methods.SA import simulated_annealing
+from other_methods.BA import artificial_bee_colony
 import time
+import math
 # from other_methods.RL import rl_based_solve
 import statistics
 
@@ -43,7 +45,7 @@ def main():
         '''
         # begin your code
         start=time.time()
-        pred_adj = simulated_annealing(graph=Graph,mask=mask) #torch(n,n)
+        pred_adj = artificial_bee_colony(graph=Graph,mask=mask) #torch(n,n)
         end=time.time()
         print('time:',end-start)
         # pred_adj = rl_based_solve(graph=Graph, num_episodes=100, mask=mask)
@@ -61,7 +63,12 @@ def main():
         print('test_epoch:',i,'SPT loss:', SPT.item(), ' MST loss:', MST.item(), ' not reached', not_reached.item(),
           ' total loss:', loss.item())
     print('_________________________________________________________________________________')
-    print('Avg SPT loss:', sum(SPT_list)/test_epoch, 'Avg MST loss:', sum(MST_list)/test_epoch, 'Avg not reached', sum(not_reached_list)/test_epoch,
-          'Avg total loss:', sum(total_loss_list)/test_epoch, 'total loss cv:', statistics.variance(total_loss_list)/(sum(total_loss_list)/test_epoch) )
+    print('Avg SPT loss:', sum(SPT_list)/test_epoch, 
+          'Avg MST loss:', sum(MST_list)/test_epoch, 
+          'Avg not reached', sum(not_reached_list)/test_epoch,
+          'Avg total loss:', sum(total_loss_list)/test_epoch, 
+          'MAX loss:', max(total_loss_list), 
+          'MIN loss:', min(total_loss_list), 
+          'total loss cv:', math.sqrt(statistics.variance(total_loss_list))/(sum(total_loss_list)/test_epoch) )
 if __name__ == '__main__':
     main()
