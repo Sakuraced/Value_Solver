@@ -1,3 +1,4 @@
+from mpmath.libmp import str_to_man_exp
 from tqdm import tqdm
 import numpy as np
 import networkx as nx
@@ -13,9 +14,18 @@ import copy
 
 # Define the graph environment
 class GraphEnv:
-    def __init__(self, graph, center, mask):
-        self.graph = graph
-        self.center = center
+    """
+        graph 原图
+        center 中心点
+        adj_matrix 已经选中的邻接矩阵
+        selected_edges 已经选中的边集
+        selected_nodes 已经选中的点集
+        current_cost 目前的总开销
+        device 加载的运算设备
+    """
+    def __init__(self, graph, mask):
+        self.graph = graph.g
+        self.center = graph.center_node
         self.adj_matrix = None
         self.reset()
         self.selected_edges = None
@@ -28,7 +38,8 @@ class GraphEnv:
         # 初始化邻接矩阵，未选中的边设为0
         self.adj_matrix = np.zeros((len(self.graph.nodes), len(self.graph.nodes)))
         self.selected_edges = set()
-        self.selected_nodes = {self.center}
+        self.selected_nodes = set()
+
         self.current_cost = 0
         return self.get_state()
 
@@ -77,13 +88,27 @@ class PolicyNetwork(nn.Module):
         x = torch.relu(x)
         return x
 
+class PolicyNetwork2(nn.Module):
+    def __init__(self, state_dim, action_dim, fc1_dim=128, fc2_dim=128):
+        super(PolicyNetwork2, self).__init__()
+        self.fc1 = nn.Linear(state_dim, fc1_dim)
+        self.fc2 = nn.Linear(fc1_dim, fc2_dim)
+        self.prob = nn.Linear(fc2_dim, action_dim)
+
+    def forward(self, state):
+        x = torch.relu(self.fc1(state))
+        x = torch.relu(self.fc2(x))
+        prob = torch.softmax(self.prob(x), dim=-1)
+
+        return prob
+
 
 # Define the reinforcement learning agent
 class RLAgent:
     def __init__(self, graph, center, input_dim, hidden_dim, lr=0.01, mask=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.env = GraphEnv(graph, center, mask=mask)
-        self.policy_net = PolicyNetwork(input_dim, hidden_dim).to(self.device)  # Move the model to GPU
+        self.policy_net = PolicyNetwork2(input_dim, input_dim).to(self.device)
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.log_probs = []
         self.rewards = []
@@ -92,7 +117,9 @@ class RLAgent:
         adj_matrix = torch.tensor(state, dtype=torch.float32).to(self.device)
         edge_index = torch.tensor(list(self.env.graph.edges), dtype=torch.long).t().contiguous().to(self.device)
         # 计算邻接矩阵分数
-        adj_scores = self.policy_net(adj_matrix, edge_index)
+        # adj_scores = self.policy_net(adj_matrix, edge_index)
+        s = torch.tensor(state, dtype=torch.float32).to(self.device)
+        adj_scores = self.policy_net(s)
         adj_act = torch.where(available_actions == 0, torch.tensor(float('-inf')).to(self.device), adj_scores)
         # 计算概率分布并采样动作
         probs = torch.softmax(adj_act.flatten(), dim=0)
@@ -162,6 +189,21 @@ class RLAgent:
                 break
         return tree_edges
 
+def rl_based_solve(graph, mask, num_episodes):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    g = graph.g
+    mask_adj = mask_to_adj(graph=graph, mask=mask)
+    num_nodes = len(g.nodes)
+    center_node = graph.center_node
+    agent = RLAgent(graph, center=center_node, input_dim=num_nodes, hidden_dim=16, lr=0.01, mask=mask_adj)
+    agent.train(episodes=num_episodes)
+
+    final_edge = agent.get_final_edge()
+    final_tree = torch.zeros((num_nodes, num_nodes)).to(device)
+    for u, v in final_edge:
+        final_tree[u, v] = 1
+    return final_tree
+
 # Generate a random graph
 def generate_graph(n, weight_range=(1, 100)):
     # 创建完全图
@@ -170,22 +212,6 @@ def generate_graph(n, weight_range=(1, 100)):
     for u, v in g.edges():
         g[u][v]['weight'] = random.randint(*weight_range)  # 随机权值
     return g
-
-def rl_based_solve(graph, mask, num_episodes):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    g = graph.g
-    mask_adj = mask_to_adj(graph=graph, mask=mask)
-    num_nodes = len(g.nodes)
-    center_node = graph.center_node
-    agent = RLAgent(g, center=center_node, input_dim=num_nodes, hidden_dim=16, lr=0.01, mask=mask_adj)
-    agent.train(episodes=num_episodes)
-
-    final_edge = agent.get_final_edge()
-    final_tree = torch.zeros((num_nodes, num_nodes)).to(device)
-    for u, v in final_edge:
-        final_tree[u, v] = 1
-    return final_tree
-# Main execution
 
 if __name__ == "__main__":
     num_nodes = 10
