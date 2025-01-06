@@ -1,7 +1,7 @@
 import os
 import json
 import time
-
+import math
 import numpy as np
 from experiment_gradient import main
 
@@ -37,7 +37,7 @@ def calculate_statistics(data):
     maximum = np.max(data)
     minimum = np.min(data)
     variance = np.var(data)
-    Coefficient_of_Variation = variance / mean
+    Coefficient_of_Variation = math.sqrt(variance) / mean
     return {
         "mean": mean,
         "max": maximum,
