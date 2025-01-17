@@ -16,7 +16,7 @@ def artificial_bee_colony(graph, mask, loss_fn=custom_loss_2, max_iters=100, n_b
     """
     n = graph.x.size()[0]
     device = graph.device
-    loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
+    loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 10}
     
     # 1. 初始化蜜蜂位置（即种群解）
     bees = [torch.randn(n, n, requires_grad=False).to(device) for _ in range(n_bees)]

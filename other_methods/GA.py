@@ -12,7 +12,7 @@ def genetic_algorithm(graph, mask, population_size=50, loss_fn = custom_loss_2,g
     # 初始化参数
     n=graph.x.size()[0]
     device = graph.device
-    loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
+    loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 10}
     
     # 1. 初始化种群：随机生成若干个 n x n 的矩阵
     population = [torch.randn(n, n).to(device) for _ in range(population_size)]
