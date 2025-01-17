@@ -16,7 +16,7 @@ import os
 
  # 样本方差
 def main():
-    loss_args={'loss_iterations': 20, 'lamda': 0.1, 'not_reached_weight': 10}
+    loss_args={'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 10}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # device= 'cpu'
     n = 1000
@@ -24,10 +24,10 @@ def main():
     center_node = 0
     seed = 44
     random_graph = False
-    subgraph_node = 9
+    subgraph_node = 4
     test_epoch = 20
     pic_args = {'self_loop': False}
-    method = "BA"
+    method = "GA"  # use GA or SA
     output_folder = f'./output/{method}/{subgraph_node}'
 
     print('initializing graph...')
