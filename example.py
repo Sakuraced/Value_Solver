@@ -25,7 +25,7 @@ def main():
     seed = 44
     random_graph = False
     subgraph_node = 4
-    test_epoch = 20
+    test_epoch = 1
     pic_args = {'self_loop': False}
     method = "GA"  # use GA or SA
     output_folder = f'./output/{method}/{subgraph_node}'
@@ -91,6 +91,8 @@ def main():
 
         # print('test_epoch:',i,'SPT loss:', SPT.item(), ' MST loss:', MST.item(), ' not reached', not_reached.item(),
         #   ' total loss:', loss.item())
+    if test_epoch <= 1:
+        exit(0)
     print('_________________________________________________________________________________')
     result = (
         f"Avg SPT loss: {sum(SPT_list)/test_epoch}\n"
