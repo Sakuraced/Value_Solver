@@ -9,11 +9,12 @@
 `node.csv`记录了点权（包含每个点的经纬度和流量需求）
 
 运行 `data` 目录下的 `data_process.py` 以构建数据集。第一次运行时，请确保 `data` 目录底部有 `distance.csv` 文件，只需运行一次加载数据集。运行结束后，`data` 目录下会出现 `subgraph_n.gpickle` 文件，其中 `$n \in [0, 10]$`，后续无需再运行。
+注意，应当在项目根目录下运行，如使用`python data/data_process.py`，否则会出现路径问题。
 
 图以networkx.Graph()存储，其中点权为{"weight"：流量需求}，边权为 {"weight":实际距离, "construction": 建设成本, "transport": 运输成本}
-## Value_Solver算法
+## LoRA-PG算法
 
-运行 `experiment_gradient.py` 以执行 `value_solver` 方法。
+运行 `LoRA-PG.py` 以执行 `LoRA-PG` 方法。
 
 ### 配置说明：
 
@@ -24,8 +25,8 @@
 ### 优化过程：
 
 该优化过程一共分为三步。可以通过设置以下参数来控制每一步的优化方式：
-- **lor**：确定第三步优化是否使用 `lora`。
-- **not_reached_penalty**：确定第一步优化是否使用 `not_reached_penalty`。
+- **use_lora**：一个list，用于确定对应优化步骤是否使用 `lora`。
+- **use_penalty**：一个list，用于确定对应优化步骤是否使用 `unreached_penalty`。
 
 ### 运行结果：
 
