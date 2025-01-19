@@ -1,16 +1,81 @@
-from mpmath.libmp import str_to_man_exp
+from sympy.strategies.branch import do_one
 from tqdm import tqdm
 import numpy as np
 import networkx as nx
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
-from matplotlib.style.core import available
-from torch_geometric.nn import GCNConv
 import random
+import copy
 from utils.prepro import calculate_node_features, Graph
 from utils.encode import mask_to_adj
-import copy
+from utils.prepro import Graph
+from utils.loss import custom_loss
+
+
+class ReplayBuffer:
+    def __init__(self, capacity, state_dim, action_dim):
+        self.capacity = capacity
+        self.position = 0
+        self.size = 0
+        self.states = np.zeros((capacity, state_dim), dtype=np.float32)
+        self.actions = np.zeros((capacity, action_dim), dtype=np.int32)
+        self.rewards = np.zeros((capacity, 1), dtype=np.float32)
+        self.next_states = np.zeros((capacity, state_dim), dtype=np.float32)
+        self.dones = np.zeros((capacity, 1), dtype=bool)
+
+    # def add(self, state, action, reward, next_state, done):
+    #     """存储经验"""
+    #     self.states[self.position] = state
+    #     self.actions[self.position] = action
+    #     self.rewards[self.position] = reward
+    #     self.next_states[self.position] = next_state
+    #     self.dones[self.position] = done
+    #     self.position = (self.position + 1) % self.capacity
+    #     self.size = min(self.size + 1, self.capacity)
+
+    def add(self, states, actions, rewards, next_states, dones):
+        """存单条或多条经验"""
+        batch_size = len(states)
+        # 计算插入的结束位置
+        end_position = self.position + batch_size
+        if end_position <= self.capacity:
+            # 没有超出容量，直接插入
+            self.states[self.position:end_position] = states
+            self.actions[self.position:end_position] = actions
+            self.rewards[self.position:end_position] = rewards
+            self.next_states[self.position:end_position] = next_states
+            self.dones[self.position:end_position] = dones
+        else:
+            # 超出容量，分成两段插入（循环缓冲区）
+            overflow = end_position - self.capacity
+            self.states[self.position:] = states[:batch_size - overflow]
+            self.actions[self.position:] = actions[:batch_size - overflow]
+            self.rewards[self.position:] = rewards[:batch_size - overflow]
+            self.next_states[self.position:] = next_states[:batch_size - overflow]
+            self.dones[self.position:] = dones[:batch_size - overflow]
+
+            self.states[:overflow] = states[batch_size - overflow:]
+            self.actions[:overflow] = actions[batch_size - overflow:]
+            self.rewards[:overflow] = rewards[batch_size - overflow:]
+            self.next_states[:overflow] = next_states[batch_size - overflow:]
+            self.dones[:overflow] = dones[batch_size - overflow:]
+
+        # 更新位置和有效数据大小
+        self.position = end_position % self.capacity
+        self.size = min(self.size + batch_size, self.capacity)
+
+    def sample(self, batch_size):
+        """随机采样"""
+        indices = np.random.randint(0, self.size, size=batch_size)
+        return (self.states[indices], self.actions[indices],
+                self.rewards[indices], self.next_states[indices], self.dones[indices])
+
+    def __len__(self):
+        return self.size
+
+
 
 # Define the graph environment
 class GraphEnv:
@@ -22,114 +87,101 @@ class GraphEnv:
         selected_nodes 已经选中的点集
         current_cost 目前的总开销
         device 加载的运算设备
+        输出动作概率是个nxn的矩阵pred
+        state是独热编码，这样可以直接和ava*pred乘一下得到一个向量，然后做softmax选对应的点（还是一个向量）
+        然后拿值就是左右乘俩向量 1xnxnxnxnx1=1x1
+        woc，太聪明了
     """
-    def __init__(self, graph, mask):
+    def __init__(self, graph: Graph, mask):
+        self.ClassGrpah = graph
+        self.x = graph.x
+        self.device = graph.device
         self.graph = graph.g
         self.center = graph.center_node
-        self.adj_matrix = None
-        self.reset()
-        self.selected_edges = None
-        self.selected_nodes = {self.center}
-        self.current_cost = 0
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.node_need = F.normalize(graph.K, p=1, dim=0).to(self.device)
+        self.construction = graph.construction_adj
+        self.transport = graph.transport_adj
+        self.adj = graph.adj
+        self.state = torch.empty(0)
+        self.available_adj = torch.empty(0)
         self.mask = mask
+        self.start_node = 0
+        self.reset()
 
     def reset(self):
-        # 初始化邻接矩阵，未选中的边设为0
-        self.adj_matrix = np.zeros((len(self.graph.nodes), len(self.graph.nodes)))
-        self.selected_edges = set()
-        self.selected_nodes = set()
-
-        self.current_cost = 0
-        return self.get_state()
-
-    def get_state(self):
-        # 返回当前邻接矩阵作为状态
-        return self.adj_matrix
+        start_id = torch.multinomial(self.node_need, num_samples=1, replacement=False)
+        self.start_node = start_id
+        one_hot = torch.zeros_like(self.node_need).to(self.device)
+        one_hot[start_id] = 1
+        self.state = one_hot
+        self.available_adj = (self.adj != 0).to(dtype=torch.float32)
+        self.available_adj[:start_id] = 0
+        return self.state
 
     def step(self, action):
-        # 动作是一个边 (u, v, weight)
-        u, v, weight = action
-        self.selected_edges.add((u, v))
-        self.adj_matrix[u, v] = weight
-        self.selected_nodes.update({u, v})
-        self.current_cost += weight
-        reward = -weight
-
-        done = len(self.selected_nodes) == len(self.graph.nodes)
-        return self.get_state(), reward, done
-
-    def get_available_actions(self):
+        state_id = torch.argmax(self.state)
         n = len(self.graph.nodes)
-        adj_ava = torch.zeros((n, n), dtype=torch.float32).to(self.device)
-        available_node = [k for k in range(len(self.graph.nodes)) if k not in self.selected_nodes]
-        for i in self.selected_nodes:
-            for j in available_node:
-                if self.graph.has_edge(i, j):
-                    adj_ava[i, j] = self.graph[i][j].get('weight', None)
+        mask = self.available_adj
         if self.mask is not None:
-            adj_ava = adj_ava * self.mask
-        have_actions = len(self.selected_nodes) < len(self.graph.nodes)
-        return adj_ava, have_actions
+            mask = mask * self.mask
+        ava = self.state.t() @ mask
+        next_node_pre = action * ava
+        count = (next_node_pre > 0).sum()
+        if count <= 0:
+            return self.state, -2*self.x[self.start_node], True
+        next_node_pre[next_node_pre <= 0] = -torch.inf
+        next_node_prob = torch.softmax(next_node_pre, dim=0).detach().cpu()
+        next_state_id = torch.multinomial(next_node_prob, num_samples=1, replacement=False)
+        s_ = torch.zeros_like(next_node_prob).to(self.device)
+        s_[next_state_id] = 1
+        self.available_adj[:, next_state_id] = 0
+        reward = -self.construction[state_id][next_state_id]
+        if next_state_id == self.center:
+            done = True
+            reward += self.x[self.start_node]
+        else:
+            done = False
+        self.state = s_
+        return s_, reward, done
 
-# Define the policy network
+    def get_loss(self, pred_adj, loss_args):
+        spt, mst = custom_loss(P=pred_adj, g=self.ClassGrpah, loss_args=loss_args)
+        spt = spt.cpu().detach().numpy()
+        mst = mst.cpu().detach().numpy()
+        return spt, mst
+
+
 class PolicyNetwork(nn.Module):
-    def __init__(self, input_dim, hidden_dim=32):
+    def __init__(self, state_dim, action_dim, fc1_dim=32, fc2_dim=32):
         super(PolicyNetwork, self).__init__()
-        output_dim = input_dim
-        self.gcn1 = GCNConv(input_dim, hidden_dim)
-        self.gcn2 = GCNConv(hidden_dim, output_dim)
-
-    def forward(self, node_features, edge_index):
-        # 图卷积层提取节点特征
-        x = self.gcn1(node_features, edge_index)
-        x = torch.relu(x)
-        x = self.gcn2(x, edge_index)
-        x = torch.relu(x)
-        return x
-
-class PolicyNetwork2(nn.Module):
-    def __init__(self, state_dim, action_dim, fc1_dim=128, fc2_dim=128):
-        super(PolicyNetwork2, self).__init__()
         self.fc1 = nn.Linear(state_dim, fc1_dim)
         self.fc2 = nn.Linear(fc1_dim, fc2_dim)
-        self.prob = nn.Linear(fc2_dim, action_dim)
+        self.fc3 = nn.Linear(fc2_dim, action_dim)
 
     def forward(self, state):
         x = torch.relu(self.fc1(state))
         x = torch.relu(self.fc2(x))
-        prob = torch.softmax(self.prob(x), dim=-1)
+        x = torch.softmax(self.fc3(x), dim=-1)
 
-        return prob
+        return x
 
 
 # Define the reinforcement learning agent
 class RLAgent:
-    def __init__(self, graph, center, input_dim, hidden_dim, lr=0.01, mask=None):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.env = GraphEnv(graph, center, mask=mask)
-        self.policy_net = PolicyNetwork2(input_dim, input_dim).to(self.device)
+    def __init__(self, graph, state_dim, action_dim, lr=0.01, mask=None, device=None):
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
+        self.env = GraphEnv(graph, mask)
+        self.policy_net = PolicyNetwork(state_dim, action_dim).to(self.device)
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
-        self.log_probs = []
-        self.rewards = []
+        self.buffer = ReplayBuffer(capacity=5000, state_dim=state_dim, action_dim=action_dim)
+        self.batch_size = 32
+        self.gamma = 0.9
+        self.state_dim = state_dim
 
-    def select_action(self, state, available_actions):
-        adj_matrix = torch.tensor(state, dtype=torch.float32).to(self.device)
-        edge_index = torch.tensor(list(self.env.graph.edges), dtype=torch.long).t().contiguous().to(self.device)
-        # 计算邻接矩阵分数
-        # adj_scores = self.policy_net(adj_matrix, edge_index)
-        s = torch.tensor(state, dtype=torch.float32).to(self.device)
-        adj_scores = self.policy_net(s)
-        adj_act = torch.where(available_actions == 0, torch.tensor(float('-inf')).to(self.device), adj_scores)
-        # 计算概率分布并采样动作
-        probs = torch.softmax(adj_act.flatten(), dim=0)
-        select_index = torch.argmax(probs).item()
-        self.log_probs.append(probs[select_index])
-        x, y = divmod(select_index, adj_act.size(1))
-        selected_action = (x, y, available_actions[x][y])
-        return selected_action
-
-    def update_policy(self):
+    def learn(self):
         R = 0
         policy_loss = []
         rewards = []
@@ -138,51 +190,56 @@ class RLAgent:
             rewards.insert(0, R)
         rewards = torch.tensor(rewards).to(self.device)  # Move to GPU
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-9)
-        for log_prob, reward in zip(self.log_probs, rewards):
-            policy_loss.append(-log_prob * reward)
 
         self.optimizer.zero_grad()
         policy_loss = torch.stack(policy_loss).sum()
         policy_loss.backward()
         self.optimizer.step()
 
-        self.log_probs = []
-        self.rewards = []
-
     def train(self, episodes):
         progress_bar = tqdm(range(episodes), desc=f"RL Optimization", dynamic_ncols=True)
         for episode in progress_bar:
             state = self.env.reset()
             total_reward = 0
+            state_list = []
+            reward_list = []
+            done_list = []
+            next_state_list = []
+            action_list = []
 
             while True:
-                available_actions, have_actions = self.env.get_available_actions()
-                if not have_actions:
-                    break
-                action = self.select_action(state, available_actions)
+                action = self.policy_net(state)
                 next_state, reward, done = self.env.step(action)
-                self.rewards.append(reward)
-                total_reward += reward
 
+                state_list.append(state.detach().cpu().numpy())
+                next_state_list.append(next_state.detach().cpu().numpy())
+                action_list.append(action.detach().cpu().numpy())
+                reward_list.append(reward.detach().cpu().numpy())
+                done_list.append([done])
+
+                total_reward += reward
                 if done:
                     break
                 state = next_state
 
-            self.update_policy()
+            pred_adj = self.policy_net(torch.eye(self.state_dim).to(self.device))
+            loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 0, "use_unreached": False}
+            spt, mst = self.env.get_loss(pred_adj=pred_adj, loss_args=loss_args)
+            reward_list -= mst / len(reward_list)
+            # print(reward_list)
+            # self.buffer.add(state_list, action_list, reward_list, next_state_list, done_list)
+            self.learn(mst)
             progress_bar.set_postfix(Episode=episode + 1,
                                      Total_Reward = total_reward.item(),
                                      loss = "",
                                      refresh=True)
-            # print(f"Episode {episode + 1}, Total Reward: {total_reward}")
 
-    def get_final_edge(self):
+    def get_an_tree(self):
         state = self.env.reset()
         tree_edges = []
         while True:
-            available_actions, have_actions = self.env.get_available_actions()
-            if not have_actions:
-                break
-            action = self.select_action(state, available_actions)
+            action_prob = 0
+            action = self.policy_net(state)
             tree_edges.append((action[0], action[1]))  # Record the edge (u, v)
             _, _, done = self.env.step(action)
             if done:
@@ -194,11 +251,10 @@ def rl_based_solve(graph, mask, num_episodes):
     g = graph.g
     mask_adj = mask_to_adj(graph=graph, mask=mask)
     num_nodes = len(g.nodes)
-    center_node = graph.center_node
-    agent = RLAgent(graph, center=center_node, input_dim=num_nodes, hidden_dim=16, lr=0.01, mask=mask_adj)
+    agent = RLAgent(graph, state_dim=num_nodes, action_dim=num_nodes, lr=0.01, mask=mask_adj)
     agent.train(episodes=num_episodes)
 
-    final_edge = agent.get_final_edge()
+    final_edge = agent.get_an_tree()
     final_tree = torch.zeros((num_nodes, num_nodes)).to(device)
     for u, v in final_edge:
         final_tree[u, v] = 1
