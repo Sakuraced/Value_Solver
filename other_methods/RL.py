@@ -6,13 +6,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.distributions import Categorical
 import random
 import copy
 from utils.prepro import calculate_node_features, Graph
 from utils.encode import mask_to_adj
 from utils.prepro import Graph
 from utils.loss import custom_loss
-
+from utils.encode import param_to_adj_work
 
 class ReplayBuffer:
     def __init__(self, capacity, state_dim, action_dim):
@@ -118,27 +119,32 @@ class GraphEnv:
         self.available_adj[:start_id] = 0
         return self.state
 
-    def step(self, action):
-        state_id = torch.argmax(self.state)
-        n = len(self.graph.nodes)
+    def ava_mask(self, prob):
         mask = self.available_adj
         if self.mask is not None:
             mask = mask * self.mask
         ava = self.state.t() @ mask
-        next_node_pre = action * ava
+        next_node_pre = prob * ava
         count = (next_node_pre > 0).sum()
         if count <= 0:
-            return self.state, -2*self.x[self.start_node], True
+            return next_node_pre, False
         next_node_pre[next_node_pre <= 0] = -torch.inf
-        next_node_prob = torch.softmax(next_node_pre, dim=0).detach().cpu()
-        next_state_id = torch.multinomial(next_node_prob, num_samples=1, replacement=False)
-        s_ = torch.zeros_like(next_node_prob).to(self.device)
+        next_node_prob = torch.softmax(next_node_pre, dim=0)
+        return next_node_prob, True
+
+    def step(self, action):
+        if action == -1:
+            return self.state, -2 * self.x[self.start_node], True
+        state_id = torch.argmax(self.state)
+        n = len(self.graph.nodes)
+        next_state_id = action
+        s_ = torch.zeros_like(self.state).to(self.device)
         s_[next_state_id] = 1
         self.available_adj[:, next_state_id] = 0
         reward = -self.construction[state_id][next_state_id]
         if next_state_id == self.center:
             done = True
-            reward += self.x[self.start_node]
+            reward += self.x[self.start_node].item() * 2
         else:
             done = False
         self.state = s_
@@ -146,8 +152,6 @@ class GraphEnv:
 
     def get_loss(self, pred_adj, loss_args):
         spt, mst = custom_loss(P=pred_adj, g=self.ClassGrpah, loss_args=loss_args)
-        spt = spt.cpu().detach().numpy()
-        mst = mst.cpu().detach().numpy()
         return spt, mst
 
 
@@ -180,6 +184,8 @@ class RLAgent:
         self.batch_size = 32
         self.gamma = 0.9
         self.state_dim = state_dim
+        self.epochs = 4
+        self.epsilon = 0.2
 
     def learn(self):
         R = 0
@@ -196,69 +202,111 @@ class RLAgent:
         policy_loss.backward()
         self.optimizer.step()
 
+    def update(self, trajectories):
+        states, actions, rewards, old_probs = trajectories
+        # Compute advantages
+        advantages = self.compute_advantages(rewards)
+
+        for _ in range(self.epochs):
+            probs = self.policy_net(states)
+            dist = Categorical(probs)
+            new_probs = dist.log_prob(actions)
+
+            # Compute ratio
+            ratio = (new_probs - old_probs).exp()
+
+            # Clipping
+            surr1 = ratio * advantages
+            surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantages
+            loss = -torch.min(surr1, surr2).mean()
+
+            # Backpropagation
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+    def compute_advantages(self, rewards):
+        advantages = []
+        discounted_sum = 0
+        for r in reversed(rewards):
+            discounted_sum = r + self.gamma * discounted_sum
+            advantages.insert(0, discounted_sum)
+        pred_adj = self.policy_net(torch.eye(self.state_dim).to(self.device))
+        loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 0, "use_unreached": False}
+        spt, mst = self.env.get_loss(pred_adj=pred_adj, loss_args=loss_args)
+        weight_mst = 1
+        pred_adj -= weight_mst * mst / len(pred_adj)
+        return torch.tensor(advantages, dtype=torch.float32).to(self.device)
+
     def train(self, episodes):
         progress_bar = tqdm(range(episodes), desc=f"RL Optimization", dynamic_ncols=True)
         for episode in progress_bar:
             state = self.env.reset()
             total_reward = 0
-            state_list = []
-            reward_list = []
-            done_list = []
-            next_state_list = []
-            action_list = []
+            states = []
+            rewards = []
+            old_probs = []
+            actions = []
 
             while True:
-                action = self.policy_net(state)
+                prob = self.policy_net(state)
+                ava_prob, have_action = self.env.ava_mask(prob)
+                if not have_action:
+                    break
+                dist = Categorical(probs=ava_prob)
+                action = dist.sample()
                 next_state, reward, done = self.env.step(action)
-
-                state_list.append(state.detach().cpu().numpy())
-                next_state_list.append(next_state.detach().cpu().numpy())
-                action_list.append(action.detach().cpu().numpy())
-                reward_list.append(reward.detach().cpu().numpy())
-                done_list.append([done])
+                states.append(state.detach())
+                actions.append(action.detach())
+                rewards.append(reward.detach())
+                old_probs.append(dist.log_prob(action))
 
                 total_reward += reward
                 if done:
                     break
                 state = next_state
 
-            pred_adj = self.policy_net(torch.eye(self.state_dim).to(self.device))
-            loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 0, "use_unreached": False}
-            spt, mst = self.env.get_loss(pred_adj=pred_adj, loss_args=loss_args)
-            reward_list -= mst / len(reward_list)
             # print(reward_list)
             # self.buffer.add(state_list, action_list, reward_list, next_state_list, done_list)
-            self.learn(mst)
+            states = torch.stack(states).to(self.device).detach()
+            actions = torch.stack(actions).to(self.device).detach()
+            old_probs = torch.stack(old_probs).to(self.device).detach()
+            trajectories = (states, actions, rewards, old_probs)
+            self.update(trajectories)
             progress_bar.set_postfix(Episode=episode + 1,
                                      Total_Reward = total_reward.item(),
                                      loss = "",
                                      refresh=True)
 
-    def get_an_tree(self):
-        state = self.env.reset()
-        tree_edges = []
-        while True:
-            action_prob = 0
-            action = self.policy_net(state)
-            tree_edges.append((action[0], action[1]))  # Record the edge (u, v)
-            _, _, done = self.env.step(action)
-            if done:
-                break
-        return tree_edges
+    def get_all_prob(self):
+        self.env.reset()
+        prob = self.policy_net(torch.eye(self.state_dim).to(self.device)).detach()
+        if self.env.mask is not None:
+            prob = prob * self.env.mask
+        prob = prob * self.env.available_adj
+        return prob
 
-def rl_based_solve(graph, mask, num_episodes):
+def rl_based_solve(graph, num_episodes, mask=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     g = graph.g
-    mask_adj = mask_to_adj(graph=graph, mask=mask)
+    if mask is not None:
+        mask_adj = mask_to_adj(graph=graph, mask=mask)
+    else:
+        mask_adj = None
     num_nodes = len(g.nodes)
     agent = RLAgent(graph, state_dim=num_nodes, action_dim=num_nodes, lr=0.01, mask=mask_adj)
     agent.train(episodes=num_episodes)
 
-    final_edge = agent.get_an_tree()
-    final_tree = torch.zeros((num_nodes, num_nodes)).to(device)
-    for u, v in final_edge:
-        final_tree[u, v] = 1
-    return final_tree
+    pred_adj = agent.get_all_prob()
+    max_values, max_indices = torch.max(pred_adj, dim=1, keepdim=True)
+    # 创建一个与输入张量形状相同的零张量
+    result = torch.zeros_like(pred_adj)
+    # 如果该行最大值大于 0，则将最大值位置设为 1
+    result.scatter_(1, max_indices, 1)
+    # 保留全零行
+    result[pred_adj.sum(dim=1) == 0] = 0
+    print(result)
+    return result
 
 # Generate a random graph
 def generate_graph(n, weight_range=(1, 100)):
