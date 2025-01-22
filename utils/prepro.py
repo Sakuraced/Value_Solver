@@ -20,6 +20,15 @@ class Graph:
     g: the graph stored as nx.Graph
     K(num_of_nodes): the need of nodes
     """
+    device: torch.device
+    edge_index: torch.Tensor
+    adj: torch.Tensor
+    construction_adj: torch.Tensor
+    transport_adj: torch.Tensor
+    edge_attr: torch.Tensor
+    g: nx.Graph
+    K: torch.Tensor
+
     def __init__(self, edge_index, x, center_node=None, adj=None, transport_adj=None, construction_adj=None ,edge_attr=None,g=None,device='cpu'):
         self.device=device
         self.edge_index = edge_index.to(device)
