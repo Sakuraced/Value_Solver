@@ -162,3 +162,43 @@ def AC_custom_loss(P, g, loss_args, batch_size=32):
 
     return 1/batch_size*min_path * lamda, (1 - lamda) * nw_cons.sum()
 
+
+def PG_custom_loss(P, g, loss_args, batch_size=32):
+    lamda = loss_args['lamda']
+    iterations = loss_args['loss_iterations']
+    not_reached_weight = loss_args['unreached_weight']
+    P_transport = g.transport_adj
+    P_construction = g.construction_adj
+    device = g.device
+    n=P.size()[0]
+    K = g.K
+    def process_tensor(K, batch_size):
+        # 获取K的长度
+        length = len(K)
+        
+        # 随机选择batch_size个元素的索引，允许重复
+        selected_indices = torch.multinomial(torch.ones(length), batch_size, replacement=True)
+        
+        # 计算每个位置被选择的次数，返回一个与 K 相同长度的 tensor
+        selection_counts = torch.bincount(selected_indices, minlength=length).to(K.device)
+        
+        # 将selection_counts与K做逐元素乘积
+        result = K * selection_counts
+
+        return result
+    K=process_tensor(K, batch_size)
+    P = P.T
+    _, max_indices = P.max(dim=-1, keepdim=True)
+    y_hard = torch.zeros_like(P).scatter_(-1, max_indices, 1.0)
+    P = (y_hard - P).detach() + P
+    P = P.T
+    nw_trans = torch.mul(P, P_transport)
+    nw_cons = torch.mul(P, P_construction)
+    nodes_weight = torch.matmul(torch.ones(n,device=device), nw_trans)
+    min_path=0
+    for i in range(iterations):
+        min_path += torch.dot(nodes_weight, K)
+        K = torch.matmul(P, K)
+
+    return 1/batch_size*min_path * lamda, (1 - lamda) * nw_cons.sum()
+
