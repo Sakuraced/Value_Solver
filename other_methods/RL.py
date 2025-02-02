@@ -42,20 +42,19 @@ class GraphEnv:
         self.transport = graph.transport_adj
         self.adj = graph.adj
         self.state = torch.empty(0)
-        self.start_node = 0
         self.reset()
 
-    def reset(self):
-        start_id = torch.multinomial(self.node_need, num_samples=1, replacement=False)
-        self.start_node = start_id
+    def reset(self, start_state = None):
+        if start_state is None:
+            start_id = torch.multinomial(self.node_need, num_samples=1, replacement=False)
+        else:
+            start_id = start_state
         one_hot = torch.zeros_like(self.node_need).to(self.device)
         one_hot[start_id] = 1
         self.state = one_hot
         return self.state
 
     def step(self, action):
-        # if action == -1:
-        #     return self.state, -2 * self.x[self.start_node], True
         state_id = torch.argmax(self.state)
         n = len(self.graph.nodes)
         next_state_id = action
@@ -64,7 +63,6 @@ class GraphEnv:
         reward = -self.construction[next_state_id][state_id]
         if next_state_id == self.center:
             done = True
-            reward += self.x[self.start_node].item() * 2
         else:
             done = False
         self.state = s_
@@ -96,7 +94,7 @@ class PolicyNetwork(nn.Module):
 
 # Define the reinforcement learning agent
 class RLAgent:
-    def __init__(self, graph, state_dim, action_dim, lr=0.01, mask=None, device=None):
+    def __init__(self, graph, state_dim, action_dim, lr=0.001, mask=None, device=None):
         if device is None:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
@@ -109,12 +107,11 @@ class RLAgent:
         self.state_dim = state_dim
         self.epochs = 4
         self.epsilon = 0.2
+        self.graph = graph
 
     def update(self, trajectories):
-        states, actions, rewards, old_probs = trajectories
-        # Compute advantages
-        advantages = self.compute_advantages(rewards)
-
+        states, actions, advantages, old_probs = trajectories
+        losses = []
         for _ in range(self.epochs):
             probs = self.policy_net(states)
             dist = Categorical(probs)
@@ -128,59 +125,69 @@ class RLAgent:
             surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantages
             loss = -torch.min(surr1, surr2).mean()
 
+            losses.append(loss.item())
             # Backpropagation
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+        return losses
 
-    def compute_advantages(self, rewards):
+    def compute_advantages(self, rewards, start_id):
         advantages = []
         discounted_sum = 0
         for r in reversed(rewards):
             discounted_sum = r + self.gamma * discounted_sum
             advantages.insert(0, discounted_sum)
+        advantages = torch.tensor(advantages).to(self.device)
+        advantages = advantages * self.graph.K[start_id]
         pred_adj = self.policy_net(torch.eye(self.state_dim).to(self.device))
         loss_args = {'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 0, "use_unreached": False}
         spt, mst = self.env.get_loss(pred_adj=pred_adj, loss_args=loss_args)
         weight_mst = 1
-        pred_adj -= weight_mst * mst / len(pred_adj)
-        return torch.tensor(advantages, dtype=torch.float32).to(self.device)
+        advantages -= weight_mst * mst / len(advantages)
+        return advantages.detach()
 
     def train(self, episodes):
         progress_bar = tqdm(range(episodes), desc=f"RL Optimization", dynamic_ncols=True)
         for episode in progress_bar:
-            state = self.env.reset()
+            losses = []
             total_reward = 0
-            states = []
-            rewards = []
-            old_probs = []
-            actions = []
+            for start_id in range(len(self.graph.g)):
+                states = []
+                old_probs = []
+                actions = []
+                advantages = []
+                rewards = []
+                if self.graph.K[start_id] == 0:
+                    continue
+                state = self.env.reset(start_state=start_id)
+                while True:
+                    prob = self.policy_net(state)
+                    dist = Categorical(probs=prob)
+                    action = dist.sample()
+                    next_state, reward, done = self.env.step(action)
+                    states.append(state.detach())
+                    actions.append(action.detach())
+                    rewards.append(reward.detach())
+                    old_probs.append(dist.log_prob(action))
 
-            while True:
-                prob = self.policy_net(state)
-                dist = Categorical(probs=prob)
-                action = dist.sample()
-                next_state, reward, done = self.env.step(action)
-                states.append(state.detach())
-                actions.append(action.detach())
-                rewards.append(reward.detach())
-                old_probs.append(dist.log_prob(action))
-
-                total_reward += reward
-                if done:
-                    break
-                state = next_state
-
-            # print(reward_list)
-            # self.buffer.add(state_list, action_list, reward_list, next_state_list, done_list)
-            states = torch.stack(states).to(self.device).detach()
-            actions = torch.stack(actions).to(self.device).detach()
-            old_probs = torch.stack(old_probs).to(self.device).detach()
-            trajectories = (states, actions, rewards, old_probs)
-            self.update(trajectories)
+                    total_reward += reward
+                    if done:
+                        break
+                    state = next_state
+                advantage_id = self.compute_advantages(rewards, start_id)
+                advantages.append(advantage_id)
+                states = torch.stack(states).to(self.device).detach()
+                actions = torch.stack(actions).to(self.device).detach()
+                old_probs = torch.stack(old_probs).to(self.device).detach()
+                advantages = torch.cat(advantages).to(self.device).detach()
+                trajectories = (states, actions, advantages, old_probs)
+                loss = self.update(trajectories)
+                losses += loss
+            avg_loss = np.mean(losses)
             progress_bar.set_postfix(Episode=episode + 1,
                                      Total_Reward = total_reward.item(),
-                                     loss = "",
+                                     loss = avg_loss,
                                      refresh=True)
 
     def get_all_prob(self):
