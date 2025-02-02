@@ -39,7 +39,7 @@ class Graph:
         self.transport_adj=transport_adj.to(device)
         self.g=g
         self.center_node=center_node
-        self.K=torch.tensor([data["weight"] for _, data in g.nodes(data=True)], dtype=torch.float32).to(device)
+        self.K=torch.tensor([data["weight"] for _, data in sorted(g.nodes(data=True))], dtype=torch.float32).to(device)
 
     def degrees(self):
         source_nodes = self.edge_index[0]
