@@ -3,7 +3,7 @@ import json
 import time
 import math
 import numpy as np
-from experiment_gradient import main
+from LoRAPG import main
 from RLAC import main as mainrl
 from RLSAC import main as mainsac
 
@@ -96,13 +96,13 @@ if __name__ == "__main__":
     output_folder = f"output/{type_name}/{graph_num}"  # 目标路径
     for _ in range(0, num_times):
         if type_name == "RLSAC":
-            mainsac()  # 注意从哪里导入的main
+            mainsac(graph_num)  # 注意从哪里导入的main
         elif type_name == "AC":
-            mainrl("AC")
+            mainrl("AC", graph_num)
         elif type_name == "PG":
-            mainrl("PG")
+            mainrl("PG", graph_num)
         else:
-            main()
+            main(graph_num)
 
 
     copy_matching_folders(gnum=graph_num, destination=output_folder)

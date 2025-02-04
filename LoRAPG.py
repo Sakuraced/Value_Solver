@@ -9,12 +9,13 @@ import os
 import json
 import csv
 import time
-def main():
+def main(subgraph_node = None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     n = 1000
     p = 0.01
     center_node = 0
-    subgraph_node = 4
+    if subgraph_node is None:
+        subgraph_node = 4
     seed = 44
     train_iterations = [150, 150, 150]
     lr = 0.1
@@ -22,7 +23,7 @@ def main():
     alpha = 1.0
     lora_rank = 6
     d = torch.tensor(lora_rank).to(device)
-    use_lora = [False, True, True]
+    use_lora = [False, False, True]
     use_penalty = [False, True, True]
     loss_args={'loss_iterations': 20, 'lamda': 0.1, 'unreached_weight': 10, "use_unreached":True}
     pic_args={'self_loop':False}
