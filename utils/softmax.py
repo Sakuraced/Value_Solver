@@ -73,3 +73,25 @@ def masked_softmax(E, B, gumbel=True, hard=False):
     # E = torch.where(E > 0.9999, torch.tensor(1.0).to(E.device), E)
 
     return E
+
+def masked_gumbel_softmax(E, B, gumbel=True, hard=False):
+    # 创建掩码和非掩码部分
+    mask = B == 0
+    non_mask = ~mask
+
+    # 对非掩码元素，应用 -inf 掩蔽
+    non_mask_elements = torch.where(non_mask, E, torch.tensor(-float('inf')).to(E.device))
+
+    # 对非掩码元素应用 softmax
+    softmax_non_mask_elements = F.gumbel_softmax(non_mask_elements, dim=0, hard=True)
+
+    # 将 softmax 结果应用于原始张量 E，保留掩码部分为 0
+    E = torch.where(non_mask, softmax_non_mask_elements, torch.zeros_like(E).to(E.device))
+    
+
+    # E = torch.where(E < 0.0001, torch.tensor(0.0).to(E.device), E)
+
+
+    # E = torch.where(E > 0.9999, torch.tensor(1.0).to(E.device), E)
+
+    return E

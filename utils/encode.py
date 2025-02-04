@@ -3,7 +3,7 @@ import copy
 import torch
 from torch.xpu import device
 
-from utils.softmax import masked_softmax
+from utils.softmax import masked_softmax,masked_gumbel_softmax
 import torch.nn.functional as F
 import numpy as np
 
@@ -38,6 +38,28 @@ def param_to_adj(graph, param_mask, param, lora=None):
     pred_adj = masked_softmax(pred_adj, mask)
     return pred_adj
 
+def param_to_adj_gumbel(graph, param_mask, param, lora=None):
+    n = graph.x.size()[0]
+    center_node = graph.center_node
+
+
+    edge_index = graph.edge_index
+    device = graph.device
+    mask = torch.zeros((n, n)).to(device)
+    mask[center_node, center_node] = 1
+    mask[edge_index[0, param_mask], edge_index[1, param_mask]] = 1
+    mask[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = 1
+    
+    pred_adj = torch.zeros((n, n)).to(device)
+    pred_adj[center_node, center_node] = param[0][0]
+    pred_adj[edge_index[0, param_mask], edge_index[1, param_mask]] = param[1][param_mask]
+    pred_adj[edge_index[1, ~param_mask], edge_index[0, ~param_mask]] = param[1][~param_mask]
+    if lora!=None:
+        lora=torch.mul(lora, mask)
+        pred_adj+=lora
+
+    pred_adj = masked_gumbel_softmax(pred_adj, mask)
+    return pred_adj
 
 def param_to_adj_work(graph, param_mask, param,lora=None):
     n = graph.x.size()[0]
