@@ -4,6 +4,8 @@ import time
 import math
 import numpy as np
 from experiment_gradient import main
+from RLAC import main as mainrl
+from RLSAC import main as mainsac
 
 import os
 import shutil
@@ -85,15 +87,23 @@ def collect_json_data(base_path="output", graph_num=1):
 if __name__ == "__main__":
     """
     这个接口比较假，只影响保存路径和循环次数，需要自己去experiment_gradient里先改参数
-    跑之前要先把output里子图一样的清空
+    跑之前要先把output里子图一样的清空，不然都会被算作本次测试的数据然后被拉进这个方法的output下，我是直接剪切过去的。
     """
     num_times = 5
-    graph_num = 1
-    type_name = "value_solver"  #本次测试的名称，只会改变存储数据的路径
+    graph_num = 4
+    type_name = "PG"  #本次测试的名称，如果使用的不是RLSAC\AC\PG，则会调用LoRAPG且只会改变存储数据的路径而不改变参数
 
     output_folder = f"output/{type_name}/{graph_num}"  # 目标路径
     for _ in range(0, num_times):
-        main()  # 注意从哪里导入的main
+        if type_name == "RLSAC":
+            mainsac()  # 注意从哪里导入的main
+        elif type_name == "AC":
+            mainrl("AC")
+        elif type_name == "PG":
+            mainrl("PG")
+        else:
+            main()
+
 
     copy_matching_folders(gnum=graph_num, destination=output_folder)
     loss_all, time_all = collect_json_data(output_folder, graph_num)

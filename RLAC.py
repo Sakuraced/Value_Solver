@@ -9,7 +9,7 @@ import os
 import json
 import csv
 import time
-def main():
+def main(method_type):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     n = 1000
     p = 0.01
@@ -85,14 +85,16 @@ def main():
                 lora_P = torch.mm(lora_Q, lora_K) / torch.sqrt(d) * alpha
             optimizer.zero_grad()
             pred_adj = param_to_adj(graph=Graph, param_mask=mask, param=[cen_attr, edge_attr],lora=lora_P)
-            if not use_penalty[step_num]:
-                loss_args["use_unreached"] = False
+
+            loss_args["use_unreached"] = False
+            if method_type == "AC":
                 SPT, MST = AC_custom_loss(P=pred_adj, g=Graph, loss_args=loss_args, batch_size=32)
-                loss = MST + SPT
+            elif method_type == "PG":
+                SPT, MST = PG_custom_loss(P=pred_adj, g=Graph, loss_args=loss_args, batch_size=32)
             else:
-                loss_args["use_unreached"] = True
-                SPT, MST, unreached = AC_custom_loss(P=pred_adj, g=Graph, loss_args=loss_args)
-                loss = MST + SPT + unreached
+                print("WRONG METHOD NAME")
+                exit(0)
+            loss = MST + SPT
 
             unreached_str = f"{unreached:.4f}" if use_penalty[step_num] else "None"
             progress_bar.set_postfix(SPTC=f"{SPT:.4f}",
