@@ -340,6 +340,6 @@ def SAC_custom_loss(P, g, loss_args, batch_size=32):
         K = torch.matmul(P, K)
     P = torch.clamp(P, min=1e-9)
     entropy = -torch.sum(P * torch.log(P), dim=0).sum()
-    return 1/batch_size*(min_path+entropy) * lamda, (1 - lamda) * nw_cons.sum()
+    return 1/batch_size*(min_path) * lamda, (1 - lamda) * nw_cons.sum(), entropy
 
 
